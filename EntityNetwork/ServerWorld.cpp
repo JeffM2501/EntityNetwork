@@ -112,51 +112,65 @@ namespace EntityNetwork
 
 		void ServerWorld::Update()
 		{
-			RemoteEnitityControllers.DoForEach([this](auto& key, ServerEntityController::Ptr& peer)
-			{
-				auto inbound = peer->InboundMessages.Pop();
-				while (inbound != nullptr)
+			// find all dirty entity controller properties
+			std::vector<MessageBuffer::Ptr> pendingMods;
+			RemoteEnitityControllers.DoForEach([this, &pendingMods](auto& key, ServerEntityController::Ptr& peer)
 				{
-					MessageBufferReader reader(inbound);
-					switch (reader.Command)
+					MessageBufferBuilder builder;
+					builder.Command = MessageCodes::SetControllerPropertyValues;
+					builder.AddID(peer->GetID());
+					for (auto prop : peer->GetDirtyProperties())
 					{
+						builder.AddInt(prop->Descriptor.ID);
+						prop->PackValue(builder);
+					}
+					pendingMods.push_back(builder.Pack());
 					
-					case MessageCodes::SetControllerPropertyValues:
-					{
-						while (!reader.Done())
-						{
-							int propertyID = reader.ReadInt();
-							auto prop = peer->FindPropertyByID(propertyID);
-							if (prop == nullptr)
-								reader.End();
-							else
-								prop->UnpackValue(reader, prop->Descriptor.UpdateFromClient());
-						}
-					}
-					break;
+				});
+			for (auto msg : pendingMods)
+				SendToAll(msg);
 
-					// server can't get these, it only sends them
-					case MessageCodes::AddControllerProperty:
-					case MessageCodes::RemoveControllerProperty:
-					case MessageCodes::RemoveController:
-					case MessageCodes::AcceptController:
-					case MessageCodes::AddController:
-					case MessageCodes::NoOp:
-					default:
-						break;
-					}
+			// find any new entities around each avatar and send those
 
-					inbound = peer->InboundMessages.Pop();
-				}
-			});
 		}
 
-		void ServerWorld::AddInboundData(int64_t id, MessageBuffer::Ptr message)
+		void ServerWorld::AddInboundData(int64_t id, MessageBuffer::Ptr inbound)
 		{
 			auto p = RemoteEnitityControllers.Find(id);
 			if (p == std::nullopt)
 				return;
-			(*p)->AddInbound(message);
+			ServerEntityController::Ptr& peer = (*p);
+			if (inbound != nullptr)
+			{
+				MessageBufferReader reader(inbound);
+				switch (reader.Command)
+				{
+
+				case MessageCodes::SetControllerPropertyValues:
+				{
+					while (!reader.Done())
+					{
+						int propertyID = reader.ReadInt();
+						auto prop = peer->FindPropertyByID(propertyID);
+						if (prop == nullptr)
+							reader.End();
+						else
+							prop->UnpackValue(reader, prop->Descriptor.UpdateFromClient());
+					}
+				}
+				break;
+
+				// server can't get these, it only sends them
+				case MessageCodes::AddControllerProperty:
+				case MessageCodes::RemoveControllerProperty:
+				case MessageCodes::RemoveController:
+				case MessageCodes::AcceptController:
+				case MessageCodes::AddController:
+				case MessageCodes::NoOp:
+				default:
+					break;
+				}
+			};
 		}
 
 		MessageBuffer::Ptr ServerWorld::PopOutboundData(int64_t id)

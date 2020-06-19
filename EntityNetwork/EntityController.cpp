@@ -20,6 +20,7 @@
 //	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //	SOFTWARE.
 #include "EntityController.h"
+#include <vector>
 #include <algorithm>
 #include <mutex>
 #include <thread>
@@ -57,5 +58,19 @@ namespace EntityNetwork
 			});
 
 		Properties.Replace(newProps);
+	}
+
+	std::vector<PropertyData::Ptr> EntityController::GetDirtyProperties()
+	{
+		std::vector<PropertyData::Ptr> dirtyProps;
+
+		Properties.DoForEach([&dirtyProps](PropertyData::Ptr prop) 
+			{
+				if (prop->IsDirty())
+					dirtyProps.push_back(prop);
+
+				prop->SetClean();
+			});
+		return dirtyProps;
 	}
 }

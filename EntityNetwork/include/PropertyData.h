@@ -23,6 +23,8 @@
 
 #include "PropertyDescriptor.h"
 #include "MutexedMessageBuffer.h"
+#include "ThreadTools.h"
+#include <mutex>
 #include <string>
 #include <memory>
 #include <vector>
@@ -32,6 +34,10 @@ namespace EntityNetwork
 {
 	class PropertyData
 	{
+	private:
+		bool Dirty = false;
+		std::mutex DirtyMutex;
+
 	public:
 		typedef std::shared_ptr<PropertyData> Ptr;
 		typedef std::vector<PropertyData> Vec;
@@ -40,6 +46,18 @@ namespace EntityNetwork
 
 		void*	DataPtr = nullptr;
 		size_t DataLenght = 0;
+
+		inline bool IsDirty()
+		{
+			MutexGuardian guard(DirtyMutex);
+			return Dirty;
+		}
+
+		inline void SetClean()
+		{
+			MutexGuardian guard(DirtyMutex);
+			Dirty = false;
+		}
 
 		PropertyData(const PropertyDesc& desc) : Descriptor(desc)
 		{
@@ -303,6 +321,9 @@ namespace EntityNetwork
 
 				DataPtr = (void*) new char[DataLenght];
 				reader.ReadBuffer(DataPtr);
+
+				MutexGuardian guard(DirtyMutex);
+				Dirty = true;
 			}
 		}
 	};

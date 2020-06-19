@@ -66,6 +66,8 @@ namespace EntityNetwork
 
 		PropertyData::Ptr FindPropertyByID(int id);
 
+		std::vector<PropertyData::Ptr> GetDirtyProperties();
+
 	protected:
 
 		friend class World;
