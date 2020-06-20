@@ -42,15 +42,16 @@ namespace EntityNetwork
 			ctl = RemoteEnitityControllers.Insert(id, ctl);
 
 			// setup any data and properties
-			SetupEntityController((EntityController&)(*ctl));
+			SetupEntityController(static_cast<EntityController&>(*ctl));
+			ctl->OutboundMessages.AppendRange(ControllerPropertyCache);
 			ctl->OutboundMessages.AppendRange(ControllerPropertyCache);
 
 			// tell the owner they were accepted and what there ID is.
 			MessageBufferBuilder builder;
 			builder.Command = MessageCodes::AcceptController;
 			builder.AddID(id);
+			ctl->OutboundMessages.Push(builder.Pack());
 
-			ctl->OutboundMessages.AppendRange(ControllerPropertyCache);
 
 			// let someone fill out the default data
 			ControllerEvents.Call(ControllerEventTypes::Created, [ctl](auto func) {func(ctl);});
@@ -116,15 +117,19 @@ namespace EntityNetwork
 			std::vector<MessageBuffer::Ptr> pendingMods;
 			RemoteEnitityControllers.DoForEach([this, &pendingMods](auto& key, ServerEntityController::Ptr& peer)
 				{
-					MessageBufferBuilder builder;
-					builder.Command = MessageCodes::SetControllerPropertyValues;
-					builder.AddID(peer->GetID());
-					for (auto prop : peer->GetDirtyProperties())
+					auto dirtyProps = peer->GetDirtyProperties();
+					if (dirtyProps.size() > 0)
 					{
-						builder.AddInt(prop->Descriptor.ID);
-						prop->PackValue(builder);
+						MessageBufferBuilder builder;
+						builder.Command = MessageCodes::SetControllerPropertyValues;
+						builder.AddID(peer->GetID());
+						for (auto prop : dirtyProps)
+						{
+							builder.AddInt(prop->Descriptor.ID);
+							prop->PackValue(builder);
+						}
+						pendingMods.push_back(builder.Pack());
 					}
-					pendingMods.push_back(builder.Pack());
 					
 				});
 			for (auto msg : pendingMods)
@@ -203,9 +208,9 @@ namespace EntityNetwork
 
 			MessageBufferBuilder builder;
 			builder.Command = MessageCodes::AddControllerProperty;
-			builder.AddID(desc.ID);
+			builder.AddInt(desc.ID);
 			builder.AddString(desc.Name);
-			builder.AddInt(static_cast<int>(desc.DataType));
+			builder.AddByte(static_cast<int>(desc.DataType));
 			builder.AddByte(static_cast<int>(desc.Scope));
 
 			auto msg = builder.Pack();

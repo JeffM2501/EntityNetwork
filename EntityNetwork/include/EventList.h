@@ -46,10 +46,10 @@ namespace EntityNetwork
 
 			auto& funcList = itr->second;
 
-			std::shared_ptr<V> cbPtr = std::make_shared();
+			std::shared_ptr<V> cbPtr = std::make_shared<V>();
 			*cbPtr = callback;
 
-			if (std::find(funcList.begin(), funcList.end(), callback) == funcList.end())
+			if (std::find(funcList.begin(), funcList.end(), cbPtr) == funcList.end())
 				itr->second.push_back(cbPtr);
 		}
 

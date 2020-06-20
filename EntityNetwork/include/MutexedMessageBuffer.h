@@ -205,7 +205,7 @@ namespace EntityNetwork
 			return *static_cast<int*>(p);
 		}
 
-		inline int ReadByte(int value)
+		inline int ReadByte()
 		{
 			void* p = Read(1);
 			if (p == nullptr)

@@ -19,39 +19,47 @@
 //	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 //	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //	SOFTWARE.
-#include "World.h"
-#include "PropertyDescriptor.h"
+#pragma once
+
+#include "EntityController.h"
+#include "MutexedMessageBuffer.h"
+#include "client/ClientWorld.h"
+#include <mutex>
 
 namespace EntityNetwork
 {
-	int World::RegisterControllerPropertyDesc(PropertyDesc& desc)
+	namespace Client
 	{
-		if (desc.ID < 0)
-			desc.ID = (int)EntityControllerProperties.Size();
-		EntityControllerProperties.PushBack(desc);
-		SetupControllerProperty(desc.ID);
+		class ClientEntityController : public EntityController
+		{
+		public:
+			ClientEntityController(int64_t id) : EntityController(id) {}
 
-		return desc.ID;
-	}
+			inline virtual void AddInbound(MessageBuffer::Ptr message)
+			{
+				InboundMessages.Push(message);
+			}
 
-	int World::RegisterControllerProperty(const std::string& name, PropertyDesc::DataTypes dataType, size_t bufferSize, PropertyDesc::Scopes scope)
-	{
-		PropertyDesc desc;
-		desc.Name = name;
-		desc.DataType = dataType;
-		desc.BufferSize = bufferSize;
-		desc.Scope = scope;
-		desc.ID = (int)EntityControllerProperties.Size();
-		return RegisterControllerPropertyDesc(desc);
-	}
+			inline virtual MessageBuffer::Ptr GetOutbound()
+			{
+				return OutboundMessages.Pop();
+			}
 
-	void World::SetupControllerProperty(int index)
-	{
-		// cache stuff here
-	}
+			inline virtual size_t GetOutboundSize()
+			{
+				return OutboundMessages.Size();
+			}
 
-	void World::SetupEntityController(EntityController& controller)
-	{
-		controller.SetPropertyInfo(EntityControllerProperties);
+			typedef std::shared_ptr<ClientEntityController> Ptr;
+			typedef std::function<ClientEntityController::Ptr(int64_t, bool)> CreateFunction;
+
+			bool IsSelf = false;
+
+		protected:
+			friend class ClientWorld;
+
+			MutexedMessageBufferDeque InboundMessages;
+			MutexedMessageBufferDeque OutboundMessages;
+		};
 	}
 }

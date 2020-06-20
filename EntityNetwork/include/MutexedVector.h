@@ -37,7 +37,7 @@ namespace EntityNetwork
 		std::mutex DataMutex;
 
 	public:
-		inline size_t size() { MutexGuardian guardian(DataMutex); return Data.size(); }
+		inline size_t Size() { MutexGuardian guardian(DataMutex); return Data.size(); }
 
 		inline void PushBack( const V& val)
 		{
@@ -109,7 +109,7 @@ namespace EntityNetwork
 			for (auto itr = Data.begin(); itr != Data.end();)
 			{
 				if (function(*itr))
-					itr = Data.erase();
+					itr = Data.erase(itr);
 				else
 					itr++;
 			}
@@ -147,6 +147,5 @@ namespace EntityNetwork
 			MutexGuardian guardian(DataMutex);
 			Data = other;
 		}
-
 	};
 }

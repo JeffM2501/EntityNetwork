@@ -25,6 +25,12 @@
     <Filter Include="Header Files\Properties">
       <UniqueIdentifier>{014b521b-90eb-489d-b371-a4d3ae1a6e9e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Client">
+      <UniqueIdentifier>{45a72403-dd35-4e31-a389-8fe3612b15e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Client">
+      <UniqueIdentifier>{7b070055-61dc-481c-88c0-8a01c17f1137}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/framework.h">
@@ -69,6 +75,12 @@
     <ClInclude Include="include\EventList.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\client\ClientWorld.h">
+      <Filter>Header Files\Client</Filter>
+    </ClInclude>
+    <ClInclude Include="include\client\ClientEntityController.h">
+      <Filter>Header Files\Client</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="EntityNetwork.cpp">
@@ -85,6 +97,9 @@
     </ClCompile>
     <ClCompile Include="ServerEntityController.cpp">
       <Filter>Source Files\Server</Filter>
+    </ClCompile>
+    <ClCompile Include="ClientWorld.cpp">
+      <Filter>Source Files\Client</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

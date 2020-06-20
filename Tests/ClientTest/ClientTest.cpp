@@ -29,63 +29,61 @@
 #include "EntityNetwork.h"
 
 using namespace EntityNetwork;
-using namespace EntityNetwork::Server;
+using namespace EntityNetwork::Client;
 
 
-const int MaxClients = 64;
 const int DefaultHost = 1701;
 
 int main()
 {
-    std::cout << "Server Startup\n";
+	std::cout << "Client Startup\n";
 
 	enet_initialize();
 
 	ENetAddress address = { 0 };
-
-	// any host on default port
-	address.host = ENET_HOST_ANY;
+	enet_address_set_host(&address, "127.0.0.1");
 	address.port = DefaultHost;
 
-	auto ServerHost = enet_host_create(&address, MaxClients, 3, 0, 0);
-	if (ServerHost == nullptr)
+	auto remoteHost = enet_host_create(nullptr, 1, 3, 0, 0);
+	auto client = enet_host_connect(remoteHost, &address, 3, 0);
+
+	if (client == nullptr)
 		return -1;
 
-	ServerWorld world;
-	world.RegisterControllerProperty("name", PropertyDesc::DataTypes::String, 32);
-	world.FinalizePropertyData();
+	ClientWorld world;
 
+ 	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::SelfCreated, [](ClientEntityController::Ptr client) {std::cout << "Client Self Created " << client->GetID() << "\n"; });
+	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::RemoteCreated, [](ClientEntityController::Ptr client) {std::cout << "Client remote Created " << client->GetID() << "\n"; });
+	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::RemoteDestroyed, [](ClientEntityController::Ptr client) {std::cout << "Client Self Destroyed " << client->GetID() << "\n"; });
 
-	std::vector<ENetPeer*> connectedPeers;
+	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::ControllerPropertyDefAdded, [](ClientEntityController::Ptr client, int index) {std::cout << "Controller Property def added " << index << "\n"; });
+	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::RemoteControllerPropertyChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "Remote Property changed " << index << "\n"; });
+ 	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::SelfPropteryChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "Self Property changed " << index << "\n"; });
 
 	while (true)
 	{
 		ENetEvent evt;
 
-		while (enet_host_service(ServerHost, &evt, 2) > 0)
+		while (enet_host_service(remoteHost, &evt, 2) > 0)
 		{
 			int64_t peerID = evt.peer->incomingPeerID;
 			switch (evt.type)
 			{
 			case ENetEventType::ENET_EVENT_TYPE_CONNECT:
 			{
-				std::cout << "Server Peer Connected\n";
-				auto peer = world.AddRemoteController(peerID);
-				connectedPeers.push_back(evt.peer);
+				std::cout << "Client Connected\n";
 			}
 			break;
 
 			case ENetEventType::ENET_EVENT_TYPE_DISCONNECT_TIMEOUT:
 			case ENetEventType::ENET_EVENT_TYPE_DISCONNECT:
-				std::cout << "Server Peer Disconnected\n";
-				world.RemoveRemoteController(peerID);
-				connectedPeers.erase(std::find(connectedPeers.begin(), connectedPeers.end(), evt.peer));
-			break;
+				std::cout << "Client Disconnected\n";
+				return 0;
 
 			case ENetEventType::ENET_EVENT_TYPE_RECEIVE:
-				std::cout << "Server Peer Receive Data\n";
+				std::cout << "Client Data Receive\n";
 				if (evt.channelID == 0)
-					world.AddInboundData(peerID, MessageBuffer::MakeShared(evt.packet->data, evt.packet->dataLength, false));
+					world.AddInboundData(MessageBuffer::MakeShared(evt.packet->data, evt.packet->dataLength, false));
 				else
 				{
 					// non entity data, must be other game data, like chat or something
@@ -94,7 +92,7 @@ int main()
 
 				enet_packet_destroy(evt.packet);
 				break;
-				
+
 			case ENetEventType::ENET_EVENT_TYPE_NONE:
 				break;
 			}
@@ -103,15 +101,12 @@ int main()
 		world.Update();
 
 		// send any pending outbound sync messages
-		for (auto peer : connectedPeers)
+		auto msg = world.PopOutboundData();
+		while (msg != nullptr)
 		{
-			auto msg = world.PopOutboundData(peer->incomingPeerID);
-			while (msg != nullptr)
-			{
-				ENetPacket* packet = enet_packet_create(msg->MessageData, msg->MessageLenght, ENET_PACKET_FLAG_RELIABLE);
-				enet_peer_send(peer, 0, packet);
-				msg = world.PopOutboundData(peer->incomingPeerID);
-			}
+			ENetPacket* packet = enet_packet_create(msg->MessageData, msg->MessageLenght, ENET_PACKET_FLAG_RELIABLE);
+			enet_peer_send(client, 0, packet);
+			msg = world.PopOutboundData();
 		}
 	}
 }
