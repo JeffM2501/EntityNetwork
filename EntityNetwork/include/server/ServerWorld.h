@@ -53,6 +53,7 @@ namespace EntityNetwork
 			virtual  MessageBuffer::Ptr PopOutboundData(int64_t id);
 
 			virtual int RegisterControllerPropertyDesc(PropertyDesc& desc);
+			virtual int RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize = 0);
 
 			virtual void FinalizePropertyData();
 
@@ -72,6 +73,10 @@ namespace EntityNetwork
 			void SetupPropertyCache();
 
 			MessageBuffer::Ptr BuildControllerPropertySetupMessage(PropertyDesc& desc);
+			MessageBuffer::Ptr BuildWorldPropertySetupMessage(int index);
+			MessageBuffer::Ptr BuildWorldPropertyDataMessage(int index);
+
+			MutexedVector<MessageBuffer::Ptr> WorldPropertyDefCache;
 
 			void SendToAll(MessageBuffer::Ptr message);
 		};

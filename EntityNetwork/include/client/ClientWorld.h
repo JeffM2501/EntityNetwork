@@ -64,6 +64,8 @@ namespace EntityNetwork
 				RemoteControllerPropertyChanged,
 				ControllerPropertyDefAdded,
 				ControllerPropertyDefRemoved,
+				WorldPropertyDefAdded,
+				WorldPropertyDataChanged,
 			};
 			EventList<PropertyEventTypes, std::function<void(ClientEntityController::Ptr, int)>> PropertyEvents;
 

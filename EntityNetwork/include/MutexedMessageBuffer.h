@@ -73,7 +73,8 @@ namespace EntityNetwork
 		AddControllerProperty,
 		RemoveControllerProperty,
 		SetControllerPropertyValues,
-
+		AddWordDataDef,
+		SetWorldDataValues,
 	};
 
 	class MessageBufferBuilder
@@ -95,11 +96,18 @@ namespace EntityNetwork
 		inline MessageBufferBuilder()
 		{
 			Data.reserve(128);
+			Data.push_back(0);
+		}
+
+		inline bool Empty()
+		{
+			return Data.size() > 1;
 		}
 
 		inline void Clear()
 		{
 			Data = std::vector<char>(128);
+			Data.push_back(0);
 		}
 
 		inline void AddInt(int value)
@@ -110,6 +118,12 @@ namespace EntityNetwork
 		inline void AddByte(int value)
 		{
 			unsigned char c = static_cast<unsigned char>(value);
+			Insert(&c, 1);
+		}
+		
+		inline void AddBool(bool value)
+		{
+			unsigned char c = value ? 1 : 0;
 			Insert(&c, 1);
 		}
 
@@ -211,6 +225,14 @@ namespace EntityNetwork
 			if (p == nullptr)
 				return 0;
 			return *static_cast<unsigned char*>(p);
+		}
+
+		inline bool ReadBool()
+		{
+			void* p = Read(1);
+			if (p == nullptr)
+				return false;
+			return static_cast<unsigned char*>(p) != 0;
 		}
 
 		inline int64_t ReadID()

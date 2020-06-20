@@ -54,11 +54,14 @@ namespace EntityNetwork
 
 			switch (reader.Command)
 			{
+			case MessageCodes::AddWordDataDef:
 			case MessageCodes::AddControllerProperty:
 			case MessageCodes::RemoveControllerProperty:
 				HandlePropteryDescriptorMessage(reader);
 				break;
 
+			
+		
 			case MessageCodes::AcceptController:
 			{
 				auto id = reader.ReadID();
@@ -117,6 +120,20 @@ namespace EntityNetwork
 			}
 			break;
 
+			case MessageCodes::SetWorldDataValues:
+				while (!reader.Done())
+				{
+					auto prop = WorldProperties.Get(reader.ReadByte());
+					prop->UnpackValue(reader, prop->Descriptor.UpdateFromServer());
+
+					if (prop->Descriptor.UpdateFromServer())
+						PropertyEvents.Call(PropertyEventTypes::WorldPropertyDataChanged, [&prop](auto func) {func(nullptr, prop->Descriptor.ID); });
+
+					prop->SetClean(); // remote properties are never dirty, only locally set ones
+				}
+				break;
+
+
 			case MessageCodes::NoOp:
 			default:
 				break;
@@ -154,7 +171,7 @@ namespace EntityNetwork
 
 		void  ClientWorld::HandlePropteryDescriptorMessage(MessageBufferReader& reader)
 		{
-			if (EntityControllerProperties.Size() == 0) // first data of anything we get is property descriptors
+			if (EntityControllerProperties.Size() == 0 && WorldProperties.Size() == 0) // first data of anything we get is property descriptors
 				StateEvents.Call(StateEventTypes::Negotiating, [](auto func) {func(StateEventTypes::Negotiating); });
 
 			if (reader.Command == MessageCodes::AddControllerProperty)
@@ -164,6 +181,7 @@ namespace EntityNetwork
 				desc.Name = reader.ReadString();
 				desc.DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
 				desc.Scope = static_cast<PropertyDesc::Scopes>(reader.ReadByte());
+				desc.Private = reader.ReadBool();
 
 				RegisterControllerPropertyDesc(desc);
 				if (Self != nullptr)	// if we are connected, fix all the other peers
@@ -172,6 +190,17 @@ namespace EntityNetwork
 					Peers.DoForEach([this](auto id, auto peer) {SetupEntityController(*peer); });
 				}
 				PropertyEvents.Call(PropertyEventTypes::ControllerPropertyDefAdded, [&desc](auto func) {func(nullptr, desc.ID); });
+			}
+			else if (reader.Command == MessageCodes::AddWordDataDef)
+			{
+				PropertyDesc desc;
+				desc.ID = reader.ReadInt();
+				desc.Name = reader.ReadString();
+				desc.DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
+
+				RegisterWorldPropertyDesc(desc);
+				
+				PropertyEvents.Call(PropertyEventTypes::WorldPropertyDefAdded, [&desc](auto func) {func(nullptr, desc.ID); });
 			}
 			else if (reader.Command == MessageCodes::RemoveControllerProperty)
 			{

@@ -42,8 +42,17 @@ namespace EntityNetwork
 			ctl = RemoteEnitityControllers.Insert(id, ctl);
 
 			// setup any data and properties
+
+			// send world data
+			ctl->OutboundMessages.AppendRange(WorldPropertyDefCache);
+			MessageBufferBuilder worldDataUpdates;
+			worldDataUpdates.Command = MessageCodes::SetWorldDataValues;
+			WorldProperties.DoForEach([&worldDataUpdates](PropertyData::Ptr prop){prop->PackValue(worldDataUpdates);});
+			if (!worldDataUpdates.Empty())
+				ctl->OutboundMessages.Push(worldDataUpdates.Pack());
+
+			// send controller properties
 			SetupEntityController(static_cast<EntityController&>(*ctl));
-			ctl->OutboundMessages.AppendRange(ControllerPropertyCache);
 			ctl->OutboundMessages.AppendRange(ControllerPropertyCache);
 
 			// tell the owner they were accepted and what there ID is.
@@ -113,9 +122,25 @@ namespace EntityNetwork
 
 		void ServerWorld::Update()
 		{
+			std::vector<MessageBuffer::Ptr> pendingGlobalUpdates;
+
+			// send out any dirty world data updates
+			MessageBufferBuilder worldDataUpdates;
+			worldDataUpdates.Command = MessageCodes::SetWorldDataValues;
+			WorldProperties.DoForEach([this,&worldDataUpdates](PropertyData::Ptr prop)
+				{
+					if (prop->IsDirty())
+						prop->PackValue(worldDataUpdates);
+
+					prop->SetClean();
+				});
+
+			if (!worldDataUpdates.Empty())
+				pendingGlobalUpdates.push_back(worldDataUpdates.Pack());
+
 			// find all dirty entity controller properties
-			std::vector<MessageBuffer::Ptr> pendingMods;
-			RemoteEnitityControllers.DoForEach([this, &pendingMods](auto& key, ServerEntityController::Ptr& peer)
+			
+			RemoteEnitityControllers.DoForEach([&pendingGlobalUpdates](auto& key, ServerEntityController::Ptr& peer)
 				{
 					auto dirtyProps = peer->GetDirtyProperties();
 					if (dirtyProps.size() > 0)
@@ -125,14 +150,18 @@ namespace EntityNetwork
 						builder.AddID(peer->GetID());
 						for (auto prop : dirtyProps)
 						{
+							if (prop->Descriptor.Private) // we don't replicate private data
+								continue;
+
 							builder.AddInt(prop->Descriptor.ID);
 							prop->PackValue(builder);
 						}
-						pendingMods.push_back(builder.Pack());
+						pendingGlobalUpdates.push_back(builder.Pack());
 					}
 					
 				});
-			for (auto msg : pendingMods)
+
+			for (auto msg : pendingGlobalUpdates)
 				SendToAll(msg);
 
 			// find any new entities around each avatar and send those
@@ -212,7 +241,7 @@ namespace EntityNetwork
 			builder.AddString(desc.Name);
 			builder.AddByte(static_cast<int>(desc.DataType));
 			builder.AddByte(static_cast<int>(desc.Scope));
-
+			builder.AddBool(desc.Private);
 			auto msg = builder.Pack();
 			ControllerPropertyCache.PushBack(msg);
 
@@ -222,6 +251,42 @@ namespace EntityNetwork
 		void ServerWorld::SetupPropertyCache()
 		{
 			EntityControllerProperties.DoForEach([this](auto& prop) {BuildControllerPropertySetupMessage(prop); });
+		}
+
+		int ServerWorld::RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize)
+		{
+			int index = World::RegisterWorldPropertyData(name,dataType,dataSize);
+
+			SendToAll(BuildWorldPropertySetupMessage(index));
+			SendToAll(BuildWorldPropertyDataMessage(index));
+
+			return index;
+		}
+
+		MessageBuffer::Ptr ServerWorld::BuildWorldPropertySetupMessage(int index)
+		{
+			auto data = WorldProperties[index];
+
+			MessageBufferBuilder builder;
+			builder.Command = MessageCodes::AddWordDataDef;
+			builder.AddInt(index);
+			builder.AddString(data->Descriptor.Name);
+			builder.AddByte(static_cast<int>(data->Descriptor.DataType));
+			auto msg = builder.Pack();
+			WorldPropertyDefCache.PushBack(msg);
+
+			return msg;
+		}
+
+		MessageBuffer::Ptr ServerWorld::BuildWorldPropertyDataMessage(int index)
+		{
+			auto data = WorldProperties[index];
+
+			MessageBufferBuilder builder;
+			builder.Command = MessageCodes::SetWorldDataValues;
+			data->PackValue(builder);
+			auto msg = builder.Pack();
+			return msg;
 		}
 
 		void ServerWorld::SendToAll(MessageBuffer::Ptr message)

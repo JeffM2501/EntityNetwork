@@ -24,7 +24,7 @@ A world is a set of entity controllers and associated entities. There are two fo
 
 # ToDo
 
-* Private vs public properties
+* global world data
 * global RPC
 * entity definitions
   * avatar
@@ -34,7 +34,6 @@ A world is a set of entity controllers and associated entities. There are two fo
   * linked and unlinked
 * spatial partitions
 * near avatar updates
-* global world data
 * update ticks
 * last sent tick
 * last ack tick

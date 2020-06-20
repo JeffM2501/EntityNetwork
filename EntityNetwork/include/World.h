@@ -33,7 +33,13 @@ namespace EntityNetwork
 	public:
 
 		virtual int RegisterControllerPropertyDesc(PropertyDesc& desc);
-		virtual int RegisterControllerProperty(const std::string& name, PropertyDesc::DataTypes dataType, size_t bufferSize = 0, PropertyDesc::Scopes scope = PropertyDesc::Scopes::BidirectionalSync);
+		virtual int RegisterControllerProperty(const std::string& name, PropertyDesc::DataTypes dataType, size_t bufferSize = 0, PropertyDesc::Scopes scope = PropertyDesc::Scopes::BidirectionalSync, bool isPrivate = false);
+
+		virtual int RegisterWorldPropertyDesc(PropertyDesc& desc);
+		virtual int RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize = 0);
+
+		PropertyData::Ptr GetWorldPropertyData(int id);
+		PropertyData::Ptr GetWorldPropertyData(const std::string& name);
 
 	protected:
 		MutexedVector<PropertyDesc> EntityControllerProperties;
@@ -41,5 +47,6 @@ namespace EntityNetwork
 		virtual void SetupControllerProperty(int index);
 		virtual void SetupEntityController(EntityController& controller);
 
+		MutexedVector<PropertyData::Ptr> WorldProperties;
 	};
 }

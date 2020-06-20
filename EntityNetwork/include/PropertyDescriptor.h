@@ -43,6 +43,8 @@ namespace EntityNetwork
 		};
 		Scopes Scope = Scopes::BidirectionalSync;
 
+		bool Private = false;
+
 		inline bool TransmitDef() const
 		{
 			return Scope != Scopes::ServerNoSync && Scope != Scopes::ClientNoSync;
