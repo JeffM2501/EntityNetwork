@@ -22,3 +22,20 @@ Properties are data fields that are associated with entities and entity controol
 A world is a set of entity controllers and associated entities. There are two forms of worlds, Server and Client. Both types maintain a sycned state of entities and properties, but have different roles and permissions in the process.
 
 
+# ToDo
+
+* Private vs public properties
+* entity definitions
+  * avatar
+  * entity properties
+* entity create and sync
+* child entities
+  * linked and unlinked
+* spatial partitions
+* near avatar updates
+* global world data
+* update ticks
+* last sent tick
+* last ack tick
+* entitiy history
+
