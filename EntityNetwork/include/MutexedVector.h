@@ -63,7 +63,7 @@ namespace EntityNetwork
 			return Data.pop_front();
 		}
 
-		inline V& Get(int index)
+		inline V Get(int index)
 		{
 			MutexGuardian guardian(DataMutex);
 			return Data[index];
@@ -79,6 +79,12 @@ namespace EntityNetwork
 		}
 
 		inline V& operator [](int index)
+		{
+			MutexGuardian guardian(DataMutex);
+			return Data[index];
+		}
+
+		inline V& operator [](size_t index)
 		{
 			MutexGuardian guardian(DataMutex);
 			return Data[index];

@@ -53,10 +53,15 @@ int main()
 
 	ServerWorld world;
 	world.RegisterControllerProperty("name", PropertyDesc::DataTypes::String, 32);
+	
+	int propID = world.RegisterWorldPropertyData("WorldProp1", EntityNetwork::PropertyDesc::DataTypes::Integer);
+	world.GetWorldPropertyData(propID)->SetValueI(1);
+	// in 5 seconds change the world data property to make sure it gets sent out
+	auto testThread = std::thread([&world, propID]() {std::this_thread::sleep_for(std::chrono::seconds(5)); world.GetWorldPropertyData(propID)->SetValueI(5); });
 
 	int clientProcID = world.RegisterRemoteProcedure(RemoteProcedureDef::CreateClientSideRPC("clientRPC1", true).DefineArgument(PropertyDesc::DataTypes::String));
 	int serverProcID = world.RegisterRemoteProcedure(RemoteProcedureDef::CreateServerSideRPC("serverSideRPC1").DefineArgument(PropertyDesc::DataTypes::Integer));
-
+	
 	world.AssignRemoteProcedureFunction(serverProcID, [](ServerEntityController::Ptr sender, const std::vector<PropertyData::Ptr>& args)
 	{
 		std::cout << " Client " << sender->GetID() << " triggered server rpc1 with value " << args[0]->GetValueI() << "\n";
@@ -131,5 +136,6 @@ int main()
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
+	testThread.join();
 }
 
