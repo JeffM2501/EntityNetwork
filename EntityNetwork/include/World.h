@@ -24,6 +24,8 @@
 #include "EntityController.h"
 #include "PropertyDescriptor.h"
 #include "MutexedVector.h"
+#include "RemoteProcedureDescriptor.h"
+
 #include <vector>
 
 namespace EntityNetwork
@@ -42,11 +44,14 @@ namespace EntityNetwork
 		PropertyData::Ptr GetWorldPropertyData(const std::string& name);
 
 	protected:
+		// entity controllers
 		MutexedVector<PropertyDesc> EntityControllerProperties;
 
 		virtual void SetupControllerProperty(int index);
 		virtual void SetupEntityController(EntityController& controller);
 
+		// world properties
 		MutexedVector<PropertyData::Ptr> WorldProperties;
+
 	};
 }

@@ -32,5 +32,5 @@
 
 namespace EntityFramework
 {
-
+#define PROTOCOL_HEADER "ENT_NET_V01"
 }

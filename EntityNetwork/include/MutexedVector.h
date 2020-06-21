@@ -69,6 +69,15 @@ namespace EntityNetwork
 			return Data[index];
 		}
 
+		inline V* TryGet(int index)
+		{
+			MutexGuardian guardian(DataMutex);
+			if (index < 0 || index >= Data.size())
+				return nullptr;
+
+			return &Data[index];
+		}
+
 		inline V& operator [](int index)
 		{
 			MutexGuardian guardian(DataMutex);

@@ -100,6 +100,7 @@
     <ClInclude Include="include\MutexedVector.h" />
     <ClInclude Include="include\PropertyData.h" />
     <ClInclude Include="include\PropertyDescriptor.h" />
+    <ClInclude Include="include\RemoteProcedureDescriptor.h" />
     <ClInclude Include="include\server\ServerEntityController.h" />
     <ClInclude Include="include\server\ServerWorld.h" />
     <ClInclude Include="include\ThreadTools.h" />

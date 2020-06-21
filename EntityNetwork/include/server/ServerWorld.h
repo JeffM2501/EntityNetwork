@@ -27,14 +27,25 @@
 #include "MutexedMap.h"
 #include "MutexedVector.h"
 #include "EventList.h"
+#include <functional>
 
 namespace EntityNetwork
 {
 	namespace Server
 	{
+		typedef std::function<void(ServerEntityController::Ptr, const std::vector<PropertyData::Ptr>&)> ServerRPCFunction;
+
 		class ServerWorld : public EntityNetwork::World
 		{
 		public:
+			class ServerRPCDef
+			{
+			public:
+				RemoteProcedureDef RPCDefintion;
+				ServerRPCFunction RPCFunction;
+
+				typedef std::shared_ptr<ServerRPCDef> Ptr;
+			};
 
 			ServerEntityController::CreateFunction CreateController;
 
@@ -43,19 +54,35 @@ namespace EntityNetwork
 				CreateController = [](int64_t id) {return std::make_shared<ServerEntityController>(id); };
 			}
 
+			// external servicing
+			virtual void Update();
+			virtual void AddInboundData(int64_t id, MessageBuffer::Ptr message);
+			virtual  MessageBuffer::Ptr PopOutboundData(int64_t id);
+
+			// world properties
+
+			virtual int RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize = 0);
+
+			// controllers
 			virtual ServerEntityController::Ptr AddRemoteController(int64_t id = -1);
 			virtual void RemoveRemoteController(int64_t id);
 
-			virtual void Update();
-
-			virtual void AddInboundData(int64_t id, MessageBuffer::Ptr message);
-
-			virtual  MessageBuffer::Ptr PopOutboundData(int64_t id);
-
 			virtual int RegisterControllerPropertyDesc(PropertyDesc& desc);
-			virtual int RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize = 0);
 
-			virtual void FinalizePropertyData();
+			// remote procedure calls
+			virtual int RegisterRemoteProcedure(RemoteProcedureDef& desc);
+
+			virtual void AssignRemoteProcedureFunction(const std::string& name, ServerRPCFunction function);
+			virtual void AssignRemoteProcedureFunction(int id, ServerRPCFunction function);
+
+			ServerRPCDef::Ptr GetRPCDef(int index);
+			ServerRPCDef::Ptr GetRPCDef(const std::string& name);
+
+			std::vector<PropertyData::Ptr> GetRPCArgs(int index);
+			std::vector<PropertyData::Ptr> GetRPCArgs(const std::string& name);
+
+			virtual bool CallRPC(int index, ServerEntityController::Ptr target, std::vector<PropertyData::Ptr>& args);
+			virtual bool CallRPC(const std::string& name, ServerEntityController::Ptr target, std::vector<PropertyData::Ptr>& args);
 
 			// events
 			enum class ControllerEventTypes
@@ -70,15 +97,22 @@ namespace EntityNetwork
 			MutexedMap<int64_t, ServerEntityController::Ptr>	RemoteEnitityControllers;	// controllers that are fully synced
 
 			MutexedVector<MessageBuffer::Ptr> ControllerPropertyCache;
-			void SetupPropertyCache();
+			MutexedVector<MessageBuffer::Ptr> WorldPropertyDefCache;
+			MutexedVector<MessageBuffer::Ptr> RPCDefCache;
 
 			MessageBuffer::Ptr BuildControllerPropertySetupMessage(PropertyDesc& desc);
 			MessageBuffer::Ptr BuildWorldPropertySetupMessage(int index);
+			MessageBuffer::Ptr BuildRPCSetupMessage(int index);
 			MessageBuffer::Ptr BuildWorldPropertyDataMessage(int index);
 
-			MutexedVector<MessageBuffer::Ptr> WorldPropertyDefCache;
-
+			virtual void Send(ServerEntityController::Ptr peer, MessageBuffer::Ptr message);
+			virtual void Send(ServerEntityController::Ptr peer, MutexedVector<MessageBuffer::Ptr>& messages);
+			inline void Send(ServerEntityController::Ptr peer, MessageBufferBuilder& builder) { Send(peer, builder.Pack()); }
 			void SendToAll(MessageBuffer::Ptr message);
+
+			virtual void ExecuteRemoteProcedureFunction(int index, ServerEntityController::Ptr sender, std::vector<PropertyData::Ptr>& arguments);
+
+			MutexedVector<std::shared_ptr<ServerRPCDef>> RemoteProcedures;
 		};
 	}
 }

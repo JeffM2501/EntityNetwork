@@ -39,8 +39,8 @@ namespace EntityNetwork
 		std::mutex DirtyMutex;
 
 	public:
-		typedef std::shared_ptr<PropertyData> Ptr;
 		typedef std::vector<PropertyData> Vec;
+		typedef std::shared_ptr<PropertyData> Ptr;
 
 		const PropertyDesc& Descriptor;
 
@@ -103,7 +103,7 @@ namespace EntityNetwork
 			DataPtr = (void*) new char[DataLenght];
 		}
 
-		static inline Ptr MakeShared(const PropertyDesc& desc)
+		static inline std::shared_ptr<PropertyData> MakeShared(const PropertyDesc& desc)
 		{
 			return std::make_shared<PropertyData>(desc);
 		}
@@ -271,6 +271,20 @@ namespace EntityNetwork
 
 			DataPtr = (void*) new char[DataLenght];
 			memcpy(DataPtr, value, DataLenght-1);
+			((char*)DataPtr)[DataLenght] = '\0';
+		}
+
+		inline void SetValueStr(const std::string& value)
+		{
+			if (Descriptor.DataType != PropertyDesc::DataTypes::String)
+				return;
+
+			DataLenght = value.size() + 1;
+			if (DataPtr != nullptr)
+				delete[] DataPtr;
+
+			DataPtr = (void*) new char[DataLenght];
+			memcpy(DataPtr, value.c_str(), value.size());
 			((char*)DataPtr)[DataLenght] = '\0';
 		}
 

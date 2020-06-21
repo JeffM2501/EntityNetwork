@@ -20,6 +20,7 @@
 //	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //	SOFTWARE.
 #include "server/ServerWorld.h"
+#include "EntityNetwork.h"
 
 namespace EntityNetwork
 {
@@ -41,26 +42,34 @@ namespace EntityNetwork
 			ServerEntityController::Ptr ctl = CreateController(id);
 			ctl = RemoteEnitityControllers.Insert(id, ctl);
 
+			
 			// setup any data and properties
 
+			MessageBufferBuilder hail;
+			hail.Command = MessageCodes::HailCheck;
+			hail.AddString(PROTOCOL_HEADER);
+			Send(ctl, hail);
+
+			// RPC defs
+			Send(ctl,RPCDefCache);
+
 			// send world data
-			ctl->OutboundMessages.AppendRange(WorldPropertyDefCache);
+			Send(ctl,WorldPropertyDefCache);
 			MessageBufferBuilder worldDataUpdates;
 			worldDataUpdates.Command = MessageCodes::SetWorldDataValues;
 			WorldProperties.DoForEach([&worldDataUpdates](PropertyData::Ptr prop){prop->PackValue(worldDataUpdates);});
 			if (!worldDataUpdates.Empty())
-				ctl->OutboundMessages.Push(worldDataUpdates.Pack());
+				Send(ctl, worldDataUpdates);
 
 			// send controller properties
 			SetupEntityController(static_cast<EntityController&>(*ctl));
-			ctl->OutboundMessages.AppendRange(ControllerPropertyCache);
+			Send(ctl,ControllerPropertyCache);
 
 			// tell the owner they were accepted and what there ID is.
 			MessageBufferBuilder builder;
 			builder.Command = MessageCodes::AcceptController;
 			builder.AddID(id);
-			ctl->OutboundMessages.Push(builder.Pack());
-
+			Send(ctl, builder);
 
 			// let someone fill out the default data
 			ControllerEvents.Call(ControllerEventTypes::Created, [ctl](auto func) {func(ctl);});
@@ -79,9 +88,9 @@ namespace EntityNetwork
 
 			MessageBuffer::Ptr createMessage = builder.Pack();
 
-			RemoteEnitityControllers.DoForEach([&builder,&ctl,&createMessage](auto& key, ServerEntityController::Ptr& peer)
+			RemoteEnitityControllers.DoForEach([this,&builder,&ctl,&createMessage](auto& key, ServerEntityController::Ptr& peer)
 				{
-					peer->OutboundMessages.Push(createMessage); // tell everyone about new peer
+					Send(peer, createMessage);
 
 					if (peer != ctl) // tell new peer about everyone else's property data while we are iterating
 					{
@@ -94,7 +103,7 @@ namespace EntityNetwork
 								if (prop->Descriptor.TransmitDef())
 									prop->PackValue(builder);
 							});
-						ctl->OutboundMessages.Push(builder.Pack());
+						Send(ctl, builder);
 					}
 				});
 			return ctl;
@@ -194,12 +203,37 @@ namespace EntityNetwork
 				}
 				break;
 
+				case MessageCodes::CallRPC:
+				{
+					int id = reader.ReadInt();
+					auto rpc = GetRPCDef(id);
+
+					if (rpc == nullptr || rpc->RPCFunction == nullptr || rpc->RPCDefintion.Scope != RemoteProcedureDef::Scopes::ClientToServer)
+						break;
+
+					std::vector<PropertyData::Ptr> args = GetRPCArgs(id);
+					int argIndex = 0;
+					while (!reader.Done())
+					{
+						if (argIndex > args.size())
+							break;
+
+						args[argIndex]->UnpackValue(reader, true);
+
+						argIndex++;
+					}
+
+					ExecuteRemoteProcedureFunction(id, peer, args);
+				}
+					break;
+
 				// server can't get these, it only sends them
 				case MessageCodes::AddControllerProperty:
 				case MessageCodes::RemoveControllerProperty:
 				case MessageCodes::RemoveController:
 				case MessageCodes::AcceptController:
 				case MessageCodes::AddController:
+				case MessageCodes::AddRPCDef:
 				case MessageCodes::NoOp:
 				default:
 					break;
@@ -225,11 +259,6 @@ namespace EntityNetwork
 			return desc.ID;
 		}
 
-		void ServerWorld::FinalizePropertyData()
-		{
-			SetupPropertyCache();
-		}
-
 		MessageBuffer::Ptr ServerWorld::BuildControllerPropertySetupMessage(PropertyDesc& desc)
 		{
 			if (desc.TransmitDef())
@@ -248,11 +277,6 @@ namespace EntityNetwork
 			return msg;
 		}
 
-		void ServerWorld::SetupPropertyCache()
-		{
-			EntityControllerProperties.DoForEach([this](auto& prop) {BuildControllerPropertySetupMessage(prop); });
-		}
-
 		int ServerWorld::RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize)
 		{
 			int index = World::RegisterWorldPropertyData(name,dataType,dataSize);
@@ -261,6 +285,84 @@ namespace EntityNetwork
 			SendToAll(BuildWorldPropertyDataMessage(index));
 
 			return index;
+		}
+
+		int ServerWorld::RegisterRemoteProcedure(RemoteProcedureDef& desc)
+		{
+			desc.ID = static_cast<int>(RemoteProcedures.Size());
+			auto ptr = std::make_shared<ServerRPCDef>();
+			ptr->RPCDefintion = desc;
+			RemoteProcedures.PushBack(ptr);
+			SendToAll(BuildRPCSetupMessage(desc.ID));
+			return desc.ID;
+		}
+
+		void ServerWorld::AssignRemoteProcedureFunction(const std::string& name, ServerRPCFunction function)
+		{
+			auto procDef = GetRPCDef(name);
+			if (procDef == nullptr)
+				return;
+
+			procDef->RPCFunction = function;
+		}
+
+		void ServerWorld::AssignRemoteProcedureFunction(int id, ServerRPCFunction function)
+		{
+			auto procDef = GetRPCDef(id);
+			if (procDef == nullptr)
+				return;
+
+			procDef->RPCFunction = function;
+		}
+
+		ServerWorld::ServerRPCDef::Ptr ServerWorld::GetRPCDef(int index)
+		{
+			auto procDef = RemoteProcedures.TryGet(index);
+			if (procDef == nullptr)
+				return nullptr;
+
+			return *procDef;
+		}
+
+		ServerWorld::ServerRPCDef::Ptr ServerWorld::GetRPCDef(const std::string& name)
+		{
+			auto procDef = RemoteProcedures.FindFirstMatch([name](ServerRPCDef::Ptr p) {return p->RPCDefintion.Name == name; });
+			if (procDef == std::nullopt)
+				return nullptr;
+
+			return *procDef;
+		}
+
+		std::vector<PropertyData::Ptr> ServerWorld::GetRPCArgs(int index)
+		{
+			std::vector<PropertyData::Ptr> args;
+
+			auto procDef = GetRPCDef(index);
+			if (procDef == nullptr)
+				return args;
+
+			for (auto& argDef : procDef->RPCDefintion.ArgumentDefs)
+				args.push_back(PropertyData::MakeShared(argDef));
+
+			return args;
+		}
+
+		std::vector<PropertyData::Ptr> ServerWorld::GetRPCArgs(const std::string& name)
+		{
+			auto procDef = GetRPCDef(name);
+			if (procDef == nullptr)
+				return std::vector<PropertyData::Ptr>();
+
+			return GetRPCArgs(procDef->RPCDefintion.ID);
+		}
+
+		void ServerWorld::ExecuteRemoteProcedureFunction(int index, ServerEntityController::Ptr sender, std::vector<PropertyData::Ptr>& arguments)
+		{
+			auto procDef = GetRPCDef(index);
+			if (procDef == nullptr || procDef->RPCFunction == nullptr || procDef->RPCDefintion.Scope == RemoteProcedureDef::Scopes::ClientToServer)
+				return;
+
+			procDef->RPCFunction(sender, arguments);
 		}
 
 		MessageBuffer::Ptr ServerWorld::BuildWorldPropertySetupMessage(int index)
@@ -278,6 +380,26 @@ namespace EntityNetwork
 			return msg;
 		}
 
+		MessageBuffer::Ptr ServerWorld::BuildRPCSetupMessage(int index)
+		{
+			auto data = GetRPCDef(index);
+			if (data == nullptr)
+				return nullptr;
+
+			MessageBufferBuilder builder;
+			builder.Command = MessageCodes::AddRPCDef;
+			builder.AddInt(index);
+			builder.AddString(data->RPCDefintion.Name);
+			builder.AddByte(static_cast<int>(data->RPCDefintion.Scope));
+			for (auto arg : data->RPCDefintion.ArgumentDefs)
+				builder.AddByte(static_cast<int>(arg.DataType));
+			
+			auto msg = builder.Pack();
+			RPCDefCache.PushBack(msg);
+
+			return msg;
+		}
+
 		MessageBuffer::Ptr ServerWorld::BuildWorldPropertyDataMessage(int index)
 		{
 			auto data = WorldProperties[index];
@@ -289,11 +411,52 @@ namespace EntityNetwork
 			return msg;
 		}
 
+		bool ServerWorld::CallRPC(int index, ServerEntityController::Ptr target, std::vector<PropertyData::Ptr>& args)
+		{
+			auto procPtr = GetRPCDef(index);
+
+			if (procPtr == nullptr || procPtr->RPCDefintion.Scope == RemoteProcedureDef::Scopes::ClientToServer)
+				return false;
+
+			MessageBufferBuilder builder;
+			builder.Command = MessageCodes::CallRPC;
+			for(PropertyData::Ptr arg : args)
+				arg->PackValue(builder);
+
+			if (procPtr->RPCDefintion.Scope == RemoteProcedureDef::Scopes::ServerToSingleClient)
+				Send(target, builder.Pack());
+			else
+				SendToAll(builder.Pack());
+
+			return true;
+		}
+
+		bool ServerWorld::CallRPC(const std::string& name, ServerEntityController::Ptr target, std::vector<PropertyData::Ptr>& args)
+		{
+			auto procPtr = GetRPCDef(name);
+			if (procPtr == nullptr)
+				return false;
+
+			return CallRPC(procPtr->RPCDefintion.ID, target, args);
+		}
+
+		void ServerWorld::Send(ServerEntityController::Ptr peer, MutexedVector<MessageBuffer::Ptr>& messages)
+		{
+			if (peer != nullptr)
+				peer->OutboundMessages.AppendRange(messages);
+		}
+
+		void ServerWorld::Send(ServerEntityController::Ptr peer, MessageBuffer::Ptr message)
+		{
+			if (peer != nullptr)
+				peer->OutboundMessages.Push(message);
+		}
+
 		void ServerWorld::SendToAll(MessageBuffer::Ptr message)
 		{
-			RemoteEnitityControllers.DoForEach([&message](auto& key, ServerEntityController::Ptr& peer)
+			RemoteEnitityControllers.DoForEach([this,&message](auto& key, ServerEntityController::Ptr& peer)
 				{
-					peer->OutboundMessages.Push(message);
+					Send(peer, message);
 				});
 		}
 	}

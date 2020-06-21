@@ -53,8 +53,14 @@ int main()
 
 	ServerWorld world;
 	world.RegisterControllerProperty("name", PropertyDesc::DataTypes::String, 32);
-	world.FinalizePropertyData();
 
+	int clientProcID = world.RegisterRemoteProcedure(RemoteProcedureDef::CreateClientSideRPC("clientRPC1", true).DefineArgument(PropertyDesc::DataTypes::String));
+	int serverProcID = world.RegisterRemoteProcedure(RemoteProcedureDef::CreateServerSideRPC("serverSideRPC1").DefineArgument(PropertyDesc::DataTypes::Integer));
+
+	world.AssignRemoteProcedureFunction(serverProcID, [](ServerEntityController::Ptr sender, const std::vector<PropertyData::Ptr>& args)
+	{
+		std::cout << " Client " << sender->GetID() << " triggered server rpc1 with value " << args[0]->GetValueI() << "\n";
+	});
 
 	std::vector<ENetPeer*> connectedPeers;
 
@@ -72,6 +78,15 @@ int main()
 				std::cout << "Server Peer Connected\n";
 				auto peer = world.AddRemoteController(peerID);
 				connectedPeers.push_back(evt.peer);
+
+				// two seconds after they connect, try to trigger the client side RPC
+				std::thread([&peer, &world, clientProcID]()
+					{
+						std::this_thread::sleep_for(std::chrono::seconds(2));
+						auto args = world.GetRPCArgs(clientProcID);
+						args[0]->SetValueStr("Test Value " + std::to_string(peer->GetID()));
+						world.CallRPC(clientProcID, peer, args);
+					});
 			}
 			break;
 
@@ -113,6 +128,8 @@ int main()
 				msg = world.PopOutboundData(peer->incomingPeerID);
 			}
 		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 

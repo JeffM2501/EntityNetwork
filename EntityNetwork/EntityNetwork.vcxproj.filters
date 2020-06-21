@@ -31,6 +31,9 @@
     <Filter Include="Source Files\Client">
       <UniqueIdentifier>{7b070055-61dc-481c-88c0-8a01c17f1137}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\RPC">
+      <UniqueIdentifier>{67f91d9b-4f1e-4b7d-a1a3-a11997a17b56}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/framework.h">
@@ -80,6 +83,9 @@
     </ClInclude>
     <ClInclude Include="include\client\ClientEntityController.h">
       <Filter>Header Files\Client</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RemoteProcedureDescriptor.h">
+      <Filter>Header Files\RPC</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

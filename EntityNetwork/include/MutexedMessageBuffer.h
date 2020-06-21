@@ -67,6 +67,7 @@ namespace EntityNetwork
 	enum class MessageCodes
 	{
 		NoOp = 0,
+		HailCheck,
 		AddController,
 		AcceptController,
 		RemoveController,
@@ -75,6 +76,8 @@ namespace EntityNetwork
 		SetControllerPropertyValues,
 		AddWordDataDef,
 		SetWorldDataValues,
+		AddRPCDef,
+		CallRPC,
 	};
 
 	class MessageBufferBuilder

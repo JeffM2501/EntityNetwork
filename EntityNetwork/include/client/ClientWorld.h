@@ -32,9 +32,19 @@ namespace EntityNetwork
 {
 	namespace Client
 	{
+		typedef std::function<void(const std::vector<PropertyData::Ptr>&)> ClientRPCFunction;
+
 		class ClientWorld : public EntityNetwork::World
 		{
 		public:
+			class ClientRPCDef
+			{
+			public:
+				RemoteProcedureDef RPCDefintion;
+				ClientRPCFunction RPCFunction;
+
+				typedef std::shared_ptr<ClientRPCDef> Ptr;
+			};
 
 			ClientEntityController::CreateFunction CreateController;
 
@@ -66,6 +76,7 @@ namespace EntityNetwork
 				ControllerPropertyDefRemoved,
 				WorldPropertyDefAdded,
 				WorldPropertyDataChanged,
+				RPCRegistered,
 			};
 			EventList<PropertyEventTypes, std::function<void(ClientEntityController::Ptr, int)>> PropertyEvents;
 
@@ -76,6 +87,19 @@ namespace EntityNetwork
 			};
 			EventList<StateEventTypes, std::function<void(StateEventTypes state)>> StateEvents;
 
+			// remote procedure calls
+			virtual void AssignRemoteProcedureFunction(const std::string& name, ClientRPCFunction function);
+			virtual void AssignRemoteProcedureFunction(int id, ClientRPCFunction function);
+
+			ClientRPCDef::Ptr GetRPCDef(int index);
+			ClientRPCDef::Ptr GetRPCDef(const std::string& name);
+
+			std::vector<PropertyData::Ptr> GetRPCArgs(int index);
+			std::vector<PropertyData::Ptr> GetRPCArgs(const std::string& name);
+
+			virtual bool CallRPC(int index, std::vector<PropertyData::Ptr>& args);
+			virtual bool CallRPC(const std::string& name, std::vector<PropertyData::Ptr>& args);
+
 		protected:
 			MutexedMap<int64_t, ClientEntityController::Ptr>	Peers;	// controllers that are fully synced
 			ClientEntityController::Ptr Self; // me
@@ -83,6 +107,12 @@ namespace EntityNetwork
 			void Send(MessageBuffer::Ptr message);
 
 			ClientEntityController::Ptr PeerFromID(int64_t id);
+
+			virtual void ExecuteRemoteProcedureFunction(int index, std::vector<PropertyData::Ptr>& arguments);
+
+			MutexedVector<std::shared_ptr<ClientRPCDef>> RemoteProcedures;
+			std::map<std::string, ClientRPCFunction> CacheedRPCFunctions;
+
 		private:
 			void HandlePropteryDescriptorMessage(MessageBufferReader& reader);
 		};

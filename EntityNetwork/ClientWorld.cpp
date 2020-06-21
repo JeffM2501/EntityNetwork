@@ -57,10 +57,9 @@ namespace EntityNetwork
 			case MessageCodes::AddWordDataDef:
 			case MessageCodes::AddControllerProperty:
 			case MessageCodes::RemoveControllerProperty:
+			case MessageCodes::AddRPCDef:
 				HandlePropteryDescriptorMessage(reader);
 				break;
-
-			
 		
 			case MessageCodes::AcceptController:
 			{
@@ -133,11 +132,127 @@ namespace EntityNetwork
 				}
 				break;
 
+			case MessageCodes::CallRPC:
+			{
+				int id = reader.ReadInt();
+				auto rpc = GetRPCDef(id);
+
+				if (rpc == nullptr || rpc->RPCFunction == nullptr || rpc->RPCDefintion.Scope == RemoteProcedureDef::Scopes::ClientToServer)
+					break;
+
+				std::vector<PropertyData::Ptr> args = GetRPCArgs(id);
+				int argIndex = 0;
+				while (!reader.Done())
+				{
+					if (argIndex > args.size())
+						break;
+
+					args[argIndex]->UnpackValue(reader,true);
+
+					argIndex++;
+				}
+
+				ExecuteRemoteProcedureFunction(id, args);
+			}
+			break;
 
 			case MessageCodes::NoOp:
 			default:
 				break;
 			}
+		}
+
+		void ClientWorld::AssignRemoteProcedureFunction(const std::string& name, ClientRPCFunction function)
+		{
+			auto rpc = GetRPCDef(name);
+			if (rpc == nullptr) // keep the function pointer around in case we get the function definition later
+				CacheedRPCFunctions[name] = function;
+			else
+				rpc->RPCFunction = function;
+		}
+
+		void  ClientWorld::AssignRemoteProcedureFunction(int id, ClientRPCFunction function)
+		{
+			auto rpc = GetRPCDef(id);
+			if (rpc != nullptr)
+				rpc->RPCFunction = function;
+		}
+
+
+		ClientWorld::ClientRPCDef::Ptr ClientWorld::GetRPCDef(int index)
+		{
+			auto procDef = RemoteProcedures.TryGet(index);
+			if (procDef == nullptr)
+				return nullptr;
+
+			return *procDef;
+		}
+
+		ClientWorld::ClientRPCDef::Ptr ClientWorld::GetRPCDef(const std::string& name)
+		{
+			auto procDef = RemoteProcedures.FindFirstMatch([name](ClientRPCDef::Ptr p) {return p->RPCDefintion.Name == name; });
+			if (procDef == std::nullopt)
+				return nullptr;
+
+			return *procDef;
+		}
+
+		std::vector<PropertyData::Ptr> ClientWorld::GetRPCArgs(int index)
+		{
+			std::vector<PropertyData::Ptr> args;
+
+			auto procDef = GetRPCDef(index);
+			if (procDef == nullptr)
+				return args;
+
+			for (auto& argDef : procDef->RPCDefintion.ArgumentDefs)
+				args.push_back(PropertyData::MakeShared(argDef));
+
+			return args;
+		}
+
+		std::vector<PropertyData::Ptr> ClientWorld::GetRPCArgs(const std::string& name)
+		{
+			auto procDef = GetRPCDef(name);
+			if (procDef == nullptr)
+				return std::vector<PropertyData::Ptr>();
+
+			return GetRPCArgs(procDef->RPCDefintion.ID);
+		}
+
+		bool ClientWorld::CallRPC(int index, std::vector<PropertyData::Ptr>& args)
+		{
+			auto procPtr = GetRPCDef(index);
+
+			if (procPtr == nullptr || procPtr->RPCDefintion.Scope != RemoteProcedureDef::Scopes::ClientToServer)
+				return false;
+
+			MessageBufferBuilder builder;
+			builder.Command = MessageCodes::CallRPC;
+			for (PropertyData::Ptr arg : args)
+				arg->PackValue(builder);
+			
+			Send(builder.Pack());
+
+			return true;
+		}
+
+		bool ClientWorld::CallRPC(const std::string& name, std::vector<PropertyData::Ptr>& args)
+		{
+			auto procPtr = GetRPCDef(name);
+			if (procPtr == nullptr)
+				return false;
+
+			return CallRPC(procPtr->RPCDefintion.ID, args);
+		}
+
+		void ClientWorld::ExecuteRemoteProcedureFunction(int index, std::vector<PropertyData::Ptr>& arguments)
+		{
+			auto procDef = GetRPCDef(index);
+			if (procDef == nullptr || procDef->RPCFunction == nullptr || procDef->RPCDefintion.Scope != RemoteProcedureDef::Scopes::ClientToServer)
+				return;
+
+			procDef->RPCFunction(arguments);
 		}
 
 		MessageBuffer::Ptr ClientWorld::PopOutboundData()
@@ -169,9 +284,9 @@ namespace EntityNetwork
 			return *peer;	
 		}
 
-		void  ClientWorld::HandlePropteryDescriptorMessage(MessageBufferReader& reader)
+		void ClientWorld::HandlePropteryDescriptorMessage(MessageBufferReader& reader)
 		{
-			if (EntityControllerProperties.Size() == 0 && WorldProperties.Size() == 0) // first data of anything we get is property descriptors
+			if (EntityControllerProperties.Size() == 0 && WorldProperties.Size() == 0 && RemoteProcedures.Size() == 0) // first data of anything we get is property descriptors
 				StateEvents.Call(StateEventTypes::Negotiating, [](auto func) {func(StateEventTypes::Negotiating); });
 
 			if (reader.Command == MessageCodes::AddControllerProperty)
@@ -201,6 +316,28 @@ namespace EntityNetwork
 				RegisterWorldPropertyDesc(desc);
 				
 				PropertyEvents.Call(PropertyEventTypes::WorldPropertyDefAdded, [&desc](auto func) {func(nullptr, desc.ID); });
+			}
+			else if (reader.Command == MessageCodes::AddRPCDef)
+			{
+				ClientRPCDef::Ptr desc = std::make_shared<ClientRPCDef>();
+				desc->RPCDefintion.ID = reader.ReadInt();
+				desc->RPCDefintion.Name = reader.ReadString();
+				desc->RPCDefintion.Scope = static_cast<RemoteProcedureDef::Scopes>(reader.ReadByte());
+
+				while (!reader.Done())
+					desc->RPCDefintion.DefineArgument(static_cast<PropertyDesc::DataTypes>(reader.ReadByte()));
+
+				RemoteProcedures.PushBack(desc);
+
+				// check to see if there is a cached function that was mapped to the name before we connected and got the definition.
+				std::map<std::string, ClientRPCFunction>::iterator itr = CacheedRPCFunctions.find(desc->RPCDefintion.Name);
+				if (itr != CacheedRPCFunctions.end())
+				{
+					desc->RPCFunction = itr->second;
+					CacheedRPCFunctions.erase(itr);
+				}
+
+				PropertyEvents.Call(PropertyEventTypes::RPCRegistered, [&desc](auto func) {func(nullptr, desc->RPCDefintion.ID); });
 			}
 			else if (reader.Command == MessageCodes::RemoveControllerProperty)
 			{
