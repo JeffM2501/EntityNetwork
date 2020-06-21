@@ -21,8 +21,25 @@ Properties are data fields that are associated with entities, entity controlers,
 ### World
 A world is a set of entity controllers and associated entities. There are two forms of worlds, Server and Client. Both types maintain a sycned state of entities and properties, but have different roles and permissions in the process.
 
+### Remote Procedure Calls (RPC)
+The server can define a set of named procedures with arguments and sync those defintions with all clients. These procedures fall into two categories, functions the client can call on the server, and funcitons the server can call on the client. The client and server have the option to register native funciton pointers that are called when these procesdures are triggered called by the other side of the network. The library will handle packging up the nessisary arguments and getting them synced.
+
+All RPC definitions are provided to the client on connection (or when new items are registered), so the client system can cache or bind them to any native or local sciripting code that it needs to. During runtime all procedures and arguments are referenced by ID to save bandwith.
+
+#### Examples
+	Client -> Server procedure
+		"RequestSpawn", No Arguments.
+		Server installs a HandleSpawn funciton pointer that handles the request and is given the requesting client's entity controller.
+	
+	Server -> Single client procedure.
+		"Direct Chat Message", Source ID, Message String arguments
+		Client installs a HandleDirectChat function pointer that handles the display of chat from a single user. Server calls the proceedure with the target client's entity controller and provides the Source ID and Message String data as arguments.
+		
+	Server -> All clients procedure.
+		"Play Sound", Sound ID, Sound Volume, Sound Postion Vector(3 floats)
+		Client installs a HandlePlaySound function pointer that handles the playing of a sound. Server calls the proceedure and provides the sound info as arguments, and the library handles sending it to all clients.
+		
 # ToDo
-* global RPC
 * entity definitions
   * avatar
   * entity properties

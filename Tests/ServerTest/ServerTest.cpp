@@ -56,15 +56,27 @@ int main()
 	
 	int propID = world.RegisterWorldPropertyData("WorldProp1", EntityNetwork::PropertyDesc::DataTypes::Integer);
 	world.GetWorldPropertyData(propID)->SetValueI(1);
+	
 	// in 5 seconds change the world data property to make sure it gets sent out
-	auto testThread = std::thread([&world, propID]() {std::this_thread::sleep_for(std::chrono::seconds(5)); world.GetWorldPropertyData(propID)->SetValueI(5); });
+	auto testThread = std::thread([&world, propID]()
+		{
+			std::this_thread::sleep_for(std::chrono::seconds(5));
+			std::cout << "Server Trigger Property Change\n";
+			auto prop = world.GetWorldPropertyData(propID);
+			prop->SetValueI(5);
+		});
 
 	int clientProcID = world.RegisterRemoteProcedure(RemoteProcedureDef::CreateClientSideRPC("clientRPC1", true).DefineArgument(PropertyDesc::DataTypes::String));
 	int serverProcID = world.RegisterRemoteProcedure(RemoteProcedureDef::CreateServerSideRPC("serverSideRPC1").DefineArgument(PropertyDesc::DataTypes::Integer));
 	
-	world.AssignRemoteProcedureFunction(serverProcID, [](ServerEntityController::Ptr sender, const std::vector<PropertyData::Ptr>& args)
+	world.AssignRemoteProcedureFunction(serverProcID, [&world, propID, clientProcID](ServerEntityController::Ptr sender, const std::vector<PropertyData::Ptr>& args)
 	{
 		std::cout << " Client " << sender->GetID() << " triggered server rpc1 with value " << args[0]->GetValueI() << "\n";
+		world.GetWorldPropertyData(propID)->SetValueI(world.GetWorldPropertyData(propID)->GetValueI() + 2);
+
+		auto args2 = world.GetRPCArgs(clientProcID);
+		args2[0]->SetValueStr("Test Value " + std::to_string(sender->GetID()));
+		world.CallRPC(clientProcID, sender, args2);
 	});
 
 	std::vector<ENetPeer*> connectedPeers;
@@ -85,13 +97,13 @@ int main()
 				connectedPeers.push_back(evt.peer);
 
 				// two seconds after they connect, try to trigger the client side RPC
-				std::thread([&peer, &world, clientProcID]()
-					{
-						std::this_thread::sleep_for(std::chrono::seconds(2));
-						auto args = world.GetRPCArgs(clientProcID);
-						args[0]->SetValueStr("Test Value " + std::to_string(peer->GetID()));
-						world.CallRPC(clientProcID, peer, args);
-					});
+// 				std::thread([&peer, &world, clientProcID]()
+// 					{
+// 						std::this_thread::sleep_for(std::chrono::seconds(2));
+// 						auto args = world.GetRPCArgs(clientProcID);
+// 						args[0]->SetValueStr("Test Value " + std::to_string(peer->GetID()));
+// 						world.CallRPC(clientProcID, peer, args);
+// 					});
 			}
 			break;
 
@@ -128,13 +140,14 @@ int main()
 			auto msg = world.PopOutboundData(peer->incomingPeerID);
 			while (msg != nullptr)
 			{
+				std::cout << "Server Peer Send Data\n";
 				ENetPacket* packet = enet_packet_create(msg->MessageData, msg->MessageLenght, ENET_PACKET_FLAG_RELIABLE);
 				enet_peer_send(peer, 0, packet);
 				msg = world.PopOutboundData(peer->incomingPeerID);
 			}
 		}
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		//std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 	testThread.join();
 }

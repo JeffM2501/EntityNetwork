@@ -149,6 +149,7 @@ namespace EntityNetwork
 					if (argIndex > args.size())
 						break;
 
+					reader.ReadByte(); // skip the id we know the order from the function defintion
 					args[argIndex]->UnpackValue(reader,true);
 
 					argIndex++;
@@ -231,6 +232,7 @@ namespace EntityNetwork
 
 			MessageBufferBuilder builder;
 			builder.Command = MessageCodes::CallRPC;
+			builder.AddInt(index);
 			for (PropertyData::Ptr arg : args)
 				arg->PackValue(builder);
 			
@@ -251,7 +253,7 @@ namespace EntityNetwork
 		void ClientWorld::ExecuteRemoteProcedureFunction(int index, std::vector<PropertyData::Ptr>& arguments)
 		{
 			auto procDef = GetRPCDef(index);
-			if (procDef == nullptr || procDef->RPCFunction == nullptr || procDef->RPCDefintion.Scope != RemoteProcedureDef::Scopes::ClientToServer)
+			if (procDef == nullptr || procDef->RPCFunction == nullptr || procDef->RPCDefintion.Scope == RemoteProcedureDef::Scopes::ClientToServer)
 				return;
 
 			procDef->RPCFunction(arguments);

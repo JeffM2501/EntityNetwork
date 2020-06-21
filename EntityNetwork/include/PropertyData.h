@@ -38,6 +38,12 @@ namespace EntityNetwork
 		bool Dirty = false;
 		std::mutex DirtyMutex;
 
+		void SetDirty()
+		{
+			MutexGuardian guard(DirtyMutex);
+			Dirty = true;
+		}
+
 	public:
 		typedef std::vector<PropertyData> Vec;
 		typedef std::shared_ptr<PropertyData> Ptr;
@@ -123,6 +129,7 @@ namespace EntityNetwork
 				return;
 
 			*(int*)DataPtr = val;
+			SetDirty();
 		}
 
 		inline int GetValueI()
@@ -139,6 +146,7 @@ namespace EntityNetwork
 				return;
 			for(int i = 0; i < 3; i++)
 				((int*)DataPtr)[i] = val[i];
+			SetDirty();
 		}
 
 		inline int* GetValue3I()
@@ -155,6 +163,7 @@ namespace EntityNetwork
 				return;
 			for (int i = 0; i < 4; i++)
 				((int*)DataPtr)[i] = val[i];
+			SetDirty();
 		}
 
 		inline int* GetValue4I()
@@ -171,6 +180,7 @@ namespace EntityNetwork
 				return;
 
 			*(float*)DataPtr = val;
+			SetDirty();
 		}
 
 		inline float GetValueF()
@@ -187,6 +197,7 @@ namespace EntityNetwork
 				return;
 			for (int i = 0; i < 3; i++)
 				((float*)DataPtr)[i] = val[i];
+			SetDirty();
 		}
 
 		inline float* GetValue3F()
@@ -203,6 +214,7 @@ namespace EntityNetwork
 				return;
 			for (int i = 0; i < 4; i++)
 				((float*)DataPtr)[i] = val[i];
+			SetDirty();
 		}
 
 		inline float* GetValue4F()
@@ -218,6 +230,7 @@ namespace EntityNetwork
 			if (Descriptor.DataType != PropertyDesc::DataTypes::Double)
 				return;
 			*(double*)DataPtr = val;
+			SetDirty();
 		}
 
 		inline double GetValueD()
@@ -234,6 +247,7 @@ namespace EntityNetwork
 				return;
 			for (int i = 0; i < 3; i++)
 				((double*)DataPtr)[i] = val[i];
+			SetDirty();
 		}
 
 		inline double* GetValue3D()
@@ -250,6 +264,7 @@ namespace EntityNetwork
 				return;
 			for (int i = 0; i < 4; i++)
 				((double*)DataPtr)[i] = val[i];
+			SetDirty();
 		}
 
 		inline double* GetValue4D()
@@ -271,7 +286,8 @@ namespace EntityNetwork
 
 			DataPtr = (void*) new char[DataLenght];
 			memcpy(DataPtr, value, DataLenght-1);
-			((char*)DataPtr)[DataLenght] = '\0';
+			((char*)DataPtr)[DataLenght - 1] = '\0';
+			SetDirty();
 		}
 
 		inline void SetValueStr(const std::string& value)
@@ -285,7 +301,8 @@ namespace EntityNetwork
 
 			DataPtr = (void*) new char[DataLenght];
 			memcpy(DataPtr, value.c_str(), value.size());
-			((char*)DataPtr)[DataLenght] = '\0';
+			((char*)DataPtr)[value.size()] = '\0';
+			SetDirty();
 		}
 
 		inline std::string GetValueStr()
@@ -307,6 +324,7 @@ namespace EntityNetwork
 
 			DataPtr = (void*) new char[lenght];
 			memcpy(DataPtr, value, DataLenght);
+			SetDirty();
 		}
 
 		inline void* GetValueBuffer()

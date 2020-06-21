@@ -52,7 +52,19 @@ int main()
 
 	ClientWorld world;
 
- 	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::SelfCreated, [](ClientEntityController::Ptr client) {std::cout << "\tSelf Created " << client->GetID() << "\n"; });
+	int serverRPCID = -1;
+
+	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::SelfCreated, [&world, &serverRPCID](ClientEntityController::Ptr client)
+		{
+			std::cout << " Client Self Created " << client->GetID() << "\n";
+			if (serverRPCID != -1)
+			{
+				auto args = world.GetRPCArgs(serverRPCID);
+				args[0]->SetValueI(1234);
+				world.CallRPC(serverRPCID, args);
+			}
+
+		});
 	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::RemoteCreated, [](ClientEntityController::Ptr client) {std::cout << "\tRemote Created " << client->GetID() << "\n"; });
 	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::RemoteDestroyed, [](ClientEntityController::Ptr client) {std::cout << "\tRemote Destroyed " << client->GetID() << "\n"; });
 
@@ -61,6 +73,20 @@ int main()
  	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::SelfPropteryChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "\tSelf Property changed " << index << "\n"; });
 	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::WorldPropertyDefAdded, [](ClientEntityController::Ptr client, int index) {std::cout << "\tWorld Property def added " << index << "\n"; });
 	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::WorldPropertyDataChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "\tWorld Property data changed " << index << "\n"; });
+
+
+	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::RPCRegistered, [&world, &serverRPCID](ClientEntityController::Ptr, int index)
+		{
+			auto proc = world.GetRPCDef(index);
+			if (proc->RPCDefintion.Name == "serverSideRPC1")
+				serverRPCID = index;
+			std::cout << " Server Registered RPC " << index << " " << proc->RPCDefintion.Name << "\n";
+		});
+
+	world.AssignRemoteProcedureFunction("clientRPC1", [](const std::vector<PropertyData::Ptr>& args)
+		{
+			std::cout << " Server " << " triggered client rpc1 with data " << args[0]->GetValueStr() << "\n";
+		});
 
 	while (true)
 	{
