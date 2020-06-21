@@ -53,8 +53,12 @@ int main()
 
 	ServerWorld world;
 	world.RegisterControllerProperty("name", PropertyDesc::DataTypes::String, 32);
+	int propID = world.RegisterWorldPropertyData("WorldProp1", EntityNetwork::PropertyDesc::DataTypes::Integer);
+	world.GetWorldPropertyData(propID)->SetValueI(1);
 	world.FinalizePropertyData();
 
+	// in 5 seconds change the world data property to make sure it gets sent out
+	auto testThread = std::thread([&world, propID]() {std::this_thread::sleep_for(std::chrono::seconds(5)); world.GetWorldPropertyData(propID)->SetValueI(5); });
 
 	std::vector<ENetPeer*> connectedPeers;
 
@@ -114,5 +118,7 @@ int main()
 			}
 		}
 	}
+
+	testThread.join();
 }
 

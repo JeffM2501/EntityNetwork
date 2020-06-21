@@ -52,8 +52,8 @@ namespace EntityNetwork
 				ctl->OutboundMessages.Push(worldDataUpdates.Pack());
 
 			// send controller properties
-			SetupEntityController(static_cast<EntityController&>(*ctl));
 			ctl->OutboundMessages.AppendRange(ControllerPropertyCache);
+			SetupEntityController(static_cast<EntityController&>(*ctl));
 
 			// tell the owner they were accepted and what there ID is.
 			MessageBufferBuilder builder;
@@ -227,12 +227,12 @@ namespace EntityNetwork
 
 		void ServerWorld::FinalizePropertyData()
 		{
-			SetupPropertyCache();
+			//SetupPropertyCache();
 		}
 
 		MessageBuffer::Ptr ServerWorld::BuildControllerPropertySetupMessage(PropertyDesc& desc)
 		{
-			if (desc.TransmitDef())
+			if (!desc.TransmitDef())
 				return nullptr;
 
 			MessageBufferBuilder builder;
@@ -265,7 +265,7 @@ namespace EntityNetwork
 
 		MessageBuffer::Ptr ServerWorld::BuildWorldPropertySetupMessage(int index)
 		{
-			auto data = WorldProperties[index];
+			PropertyData::Ptr data = WorldProperties.Get(index);
 
 			MessageBufferBuilder builder;
 			builder.Command = MessageCodes::AddWordDataDef;

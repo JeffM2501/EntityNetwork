@@ -60,8 +60,6 @@ namespace EntityNetwork
 				HandlePropteryDescriptorMessage(reader);
 				break;
 
-			
-		
 			case MessageCodes::AcceptController:
 			{
 				auto id = reader.ReadID();
@@ -87,6 +85,8 @@ namespace EntityNetwork
 				while (!reader.Done())
 				{
 					auto prop = subject->FindPropertyByID(reader.ReadByte());
+					if (prop == nullptr)
+						break;
 					prop->UnpackValue(reader, true); // always save the initial data 
 				}
 				
@@ -123,13 +123,13 @@ namespace EntityNetwork
 			case MessageCodes::SetWorldDataValues:
 				while (!reader.Done())
 				{
-					auto prop = WorldProperties.Get(reader.ReadByte());
-					prop->UnpackValue(reader, prop->Descriptor.UpdateFromServer());
+					auto prop = WorldProperties.TryGet(reader.ReadByte());
+					if (prop == nullptr)
+						break;
+					(*prop)->UnpackValue(reader, (*prop)->Descriptor.UpdateFromServer());
+					PropertyEvents.Call(PropertyEventTypes::WorldPropertyDataChanged, [&prop](auto func) {func(nullptr, (*prop)->Descriptor.ID); });
 
-					if (prop->Descriptor.UpdateFromServer())
-						PropertyEvents.Call(PropertyEventTypes::WorldPropertyDataChanged, [&prop](auto func) {func(nullptr, prop->Descriptor.ID); });
-
-					prop->SetClean(); // remote properties are never dirty, only locally set ones
+					(*prop)->SetClean(); // remote properties are never dirty, only locally set ones
 				}
 				break;
 

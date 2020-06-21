@@ -101,7 +101,7 @@ namespace EntityNetwork
 
 		inline bool Empty()
 		{
-			return Data.size() > 1;
+			return Data.size() <= 1;
 		}
 
 		inline void Clear()
@@ -176,7 +176,7 @@ namespace EntityNetwork
 
 		inline bool Done()
 		{
-			return Message != nullptr && ReadOffset < Message->MessageLenght;
+			return Message == nullptr || ReadOffset >= Message->MessageLenght;
 		}
 
 		inline void End()

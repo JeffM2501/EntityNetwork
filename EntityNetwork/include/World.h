@@ -43,6 +43,7 @@ namespace EntityNetwork
 
 	protected:
 		MutexedVector<PropertyDesc> EntityControllerProperties;
+		MutexedVector<PropertyDesc> WorldPropertyDefs;
 
 		virtual void SetupControllerProperty(int index);
 		virtual void SetupEntityController(EntityController& controller);

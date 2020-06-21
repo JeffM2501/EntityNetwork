@@ -52,13 +52,15 @@ int main()
 
 	ClientWorld world;
 
- 	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::SelfCreated, [](ClientEntityController::Ptr client) {std::cout << "Client Self Created " << client->GetID() << "\n"; });
-	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::RemoteCreated, [](ClientEntityController::Ptr client) {std::cout << "Client remote Created " << client->GetID() << "\n"; });
-	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::RemoteDestroyed, [](ClientEntityController::Ptr client) {std::cout << "Client Self Destroyed " << client->GetID() << "\n"; });
+ 	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::SelfCreated, [](ClientEntityController::Ptr client) {std::cout << "\tSelf Created " << client->GetID() << "\n"; });
+	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::RemoteCreated, [](ClientEntityController::Ptr client) {std::cout << "\tRemote Created " << client->GetID() << "\n"; });
+	world.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::RemoteDestroyed, [](ClientEntityController::Ptr client) {std::cout << "\tRemote Destroyed " << client->GetID() << "\n"; });
 
-	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::ControllerPropertyDefAdded, [](ClientEntityController::Ptr client, int index) {std::cout << "Controller Property def added " << index << "\n"; });
-	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::RemoteControllerPropertyChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "Remote Property changed " << index << "\n"; });
- 	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::SelfPropteryChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "Self Property changed " << index << "\n"; });
+	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::ControllerPropertyDefAdded, [](ClientEntityController::Ptr client, int index) {std::cout << "\tController Property def added " << index << "\n"; });
+	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::RemoteControllerPropertyChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "\tRemote Property changed " << index << "\n"; });
+ 	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::SelfPropteryChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "\tSelf Property changed " << index << "\n"; });
+	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::WorldPropertyDefAdded, [](ClientEntityController::Ptr client, int index) {std::cout << "\tWorld Property def added " << index << "\n"; });
+	world.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::WorldPropertyDataChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "\tWorld Property data changed " << index << "\n"; });
 
 	while (true)
 	{

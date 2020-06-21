@@ -16,15 +16,12 @@ An object that is tracked in the world. All Entities have properties and a world
 A player. Entity controllers are the owners of entities created and stored in the world. Enity Controllers be remote players and/or server side AI objects. All Entiteis are associated with some form of entity controller.
 
 ### Property
-Properties are data fields that are associated with entities and entity controolers. These fields contain data that will be synced to all linked worlds via message packages. 
+Properties are data fields that are associated with entities, entity controlers, and the world itself. These fields contain data that will be synced to all linked worlds via message packages. 
 
 ### World
 A world is a set of entity controllers and associated entities. There are two forms of worlds, Server and Client. Both types maintain a sycned state of entities and properties, but have different roles and permissions in the process.
 
-
 # ToDo
-
-* global world data
 * global RPC
 * entity definitions
   * avatar

@@ -64,8 +64,9 @@ namespace EntityNetwork
 		desc.BufferSize = bufferSize;
 		desc.Scope = PropertyDesc::Scopes::ServerPushSync;
 		desc.Private = true;
-		desc.ID = (int)WorldProperties.Size();
-		WorldProperties.PushBack(PropertyData::MakeShared(desc));
+		desc.ID = (int)WorldPropertyDefs.Size();
+		WorldPropertyDefs.PushBack(desc);
+		WorldProperties.PushBack(PropertyData::MakeShared(WorldPropertyDefs[desc.ID]));
 		return desc.ID;
 	}
 
@@ -73,7 +74,9 @@ namespace EntityNetwork
 	{
 		if (desc.ID < 0)
 			desc.ID = (int)WorldProperties.Size();
-		WorldProperties.PushBack(PropertyData::MakeShared(desc));
+
+		WorldPropertyDefs.PushBack(desc);
+		WorldProperties.PushBack(PropertyData::MakeShared(WorldPropertyDefs[WorldPropertyDefs.Size()-1]));
 		return desc.ID;
 	}
 
