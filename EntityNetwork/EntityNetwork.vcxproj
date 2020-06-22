@@ -93,6 +93,7 @@
     <ClInclude Include="include\client\ClientWorld.h" />
     <ClInclude Include="include\Entity.h" />
     <ClInclude Include="include\EntityController.h" />
+    <ClInclude Include="include\EntityDescriptor.h" />
     <ClInclude Include="include\EntityNetwork.h" />
     <ClInclude Include="include\EventList.h" />
     <ClInclude Include="include\MutexedMap.h" />

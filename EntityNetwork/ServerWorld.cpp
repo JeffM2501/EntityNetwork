@@ -42,7 +42,6 @@ namespace EntityNetwork
 			ServerEntityController::Ptr ctl = CreateController(id);
 			ctl = RemoteEnitityControllers.Insert(id, ctl);
 
-			
 			// setup any data and properties
 
 			MessageBufferBuilder hail;
@@ -61,8 +60,11 @@ namespace EntityNetwork
 			if (!worldDataUpdates.Empty())
 				Send(ctl, worldDataUpdates);
 
+			// entity data
+			Send(ctl, EntityDefCache);
+
 			// send controller properties
-			ctl->OutboundMessages.AppendRange(ControllerPropertyCache);
+			Send(ctl,ControllerPropertyCache);
 			SetupEntityController(static_cast<EntityController&>(*ctl));
 
 			// tell the owner they were accepted and what there ID is.
@@ -230,11 +232,12 @@ namespace EntityNetwork
 
 				// server can't get these, it only sends them
 				case MessageCodes::AddControllerProperty:
-				case MessageCodes::RemoveControllerProperty:
 				case MessageCodes::RemoveController:
 				case MessageCodes::AcceptController:
 				case MessageCodes::AddController:
 				case MessageCodes::AddRPCDef:
+				case MessageCodes::AddEntityDef:
+				case MessageCodes::AddWordDataDef:;
 				case MessageCodes::NoOp:
 				default:
 					break;
@@ -286,6 +289,14 @@ namespace EntityNetwork
 			SendToAll(BuildWorldPropertyDataMessage(index));
 
 			return index;
+		}
+
+		int ServerWorld::RegisterEntityDesc(EntityDesc& desc)
+		{
+			desc.ID = static_cast<int>(EntityDefs.Size());
+			SendToAll(BuildEntityDefMessage(desc.ID));
+			EntityDefs.Insert(desc.ID, desc);
+			return desc.ID;
 		}
 
 		int ServerWorld::RegisterRemoteProcedure(RemoteProcedureDef& desc)
@@ -397,6 +408,34 @@ namespace EntityNetwork
 			
 			auto msg = builder.Pack();
 			RPCDefCache.PushBack(msg);
+
+			return msg;
+		}
+
+		MessageBuffer::Ptr ServerWorld::BuildEntityDefMessage(int index)
+		{
+			auto def = GetEntityDef(index);
+			if (def == nullptr)
+				return nullptr;
+
+			MessageBufferBuilder builder;
+			builder.Command = MessageCodes::AddEntityDef;
+			builder.AddInt(index);
+			builder.AddString(def->Name);
+			builder.AddBool(def->IsAvatar);
+			builder.AddBool(def->Child);
+			builder.AddBool(def->AllowClientCreate);
+			builder.AddInt(def->ParrentTypeID);
+			for (auto& prop : def->Properties)
+			{
+				builder.AddInt(prop.ID);
+				builder.AddByte(static_cast<int>(prop.Scope));
+				builder.AddString(prop.Name);
+				builder.AddByte(static_cast<int>(prop.DataType));
+			}
+
+			auto msg = builder.Pack();
+			EntityDefCache.PushBack(msg);
 
 			return msg;
 		}

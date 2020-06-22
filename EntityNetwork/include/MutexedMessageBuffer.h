@@ -72,11 +72,11 @@ namespace EntityNetwork
 		AcceptController,
 		RemoveController,
 		AddControllerProperty,
-		RemoveControllerProperty,
 		SetControllerPropertyValues,
 		AddWordDataDef,
 		SetWorldDataValues,
 		AddRPCDef,
+		AddEntityDef,
 		CallRPC,
 	};
 

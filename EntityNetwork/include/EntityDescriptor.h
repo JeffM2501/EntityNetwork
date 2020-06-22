@@ -21,42 +21,30 @@
 //	SOFTWARE.
 #pragma once
 
-#include "EntityController.h"
-#include "PropertyDescriptor.h"
-#include "MutexedVector.h"
-#include <MutexedMap.h>
-#include "RemoteProcedureDescriptor.h"
-#include "EntityDescriptor.h"
-
+#include <memory>
 #include <vector>
+#include <string>
+#include <map>
+#include <functional>
+
+#include "PropertyDescriptor.h"
 
 namespace EntityNetwork
 {
-	class World
+	class EntityDesc
 	{
 	public:
-		virtual int RegisterControllerPropertyDesc(PropertyDesc& desc);
-		virtual int RegisterControllerProperty(const std::string& name, PropertyDesc::DataTypes dataType, size_t bufferSize = 0, PropertyDesc::Scopes scope = PropertyDesc::Scopes::BidirectionalSync, bool isPrivate = false);
+		int ID = -1;
+		std::string Name;
 
-		virtual int RegisterWorldPropertyDesc(PropertyDesc& desc);
-		virtual int RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize = 0);
+		bool IsAvatar = false;
+		bool Child = false;
+		bool AllowClientCreate = false;
+		
+		int ParrentTypeID = -1;
 
-		PropertyData::Ptr GetWorldPropertyData(int id);
-		PropertyData::Ptr GetWorldPropertyData(const std::string& name);
+		std::vector<PropertyDesc> Properties;
 
 	protected:
-		// entity controllers
-		MutexedVector<PropertyDesc> EntityControllerProperties;
-		MutexedVector<PropertyDesc> WorldPropertyDefs;
-		MutexedMap<int, EntityDesc>	EntityDefs;
-
-		EntityDesc* GetEntityDef(int index);
-
-		virtual void SetupControllerProperty(int index);
-		virtual void SetupEntityController(EntityController& controller);
-
-		// world properties
-		MutexedVector<PropertyData::Ptr> WorldProperties;
-
 	};
 }

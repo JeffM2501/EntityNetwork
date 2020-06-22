@@ -57,7 +57,7 @@ namespace EntityNetwork
 			// external servicing
 			virtual void Update();
 			virtual void AddInboundData(int64_t id, MessageBuffer::Ptr message);
-			virtual  MessageBuffer::Ptr PopOutboundData(int64_t id);
+			virtual MessageBuffer::Ptr PopOutboundData(int64_t id);
 
 			// world properties
 
@@ -84,6 +84,9 @@ namespace EntityNetwork
 			virtual bool CallRPC(int index, ServerEntityController::Ptr target, std::vector<PropertyData::Ptr>& args);
 			virtual bool CallRPC(const std::string& name, ServerEntityController::Ptr target, std::vector<PropertyData::Ptr>& args);
 
+			// entity definitions
+			virtual int RegisterEntityDesc(EntityDesc& desc);
+
 			// events
 			enum class ControllerEventTypes
 			{
@@ -99,10 +102,12 @@ namespace EntityNetwork
 			MutexedVector<MessageBuffer::Ptr> ControllerPropertyCache;
 			MutexedVector<MessageBuffer::Ptr> WorldPropertyDefCache;
 			MutexedVector<MessageBuffer::Ptr> RPCDefCache;
+			MutexedVector<MessageBuffer::Ptr> EntityDefCache;
 
 			MessageBuffer::Ptr BuildControllerPropertySetupMessage(PropertyDesc& desc);
 			MessageBuffer::Ptr BuildWorldPropertySetupMessage(int index);
 			MessageBuffer::Ptr BuildRPCSetupMessage(int index);
+			MessageBuffer::Ptr BuildEntityDefMessage(int index);
 			MessageBuffer::Ptr BuildWorldPropertyDataMessage(int index);
 
 			virtual void Send(ServerEntityController::Ptr peer, MessageBuffer::Ptr message);

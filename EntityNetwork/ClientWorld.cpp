@@ -21,6 +21,7 @@
 //	SOFTWARE.
 #include "client/ClientWorld.h"
 #include "MutexedMessageBuffer.h"
+#include "EntityDescriptor.h"
 
 namespace EntityNetwork
 {
@@ -56,8 +57,8 @@ namespace EntityNetwork
 			{
 			case MessageCodes::AddWordDataDef:
 			case MessageCodes::AddControllerProperty:
-			case MessageCodes::RemoveControllerProperty:
 			case MessageCodes::AddRPCDef:
+			case MessageCodes::AddEntityDef:
 				HandlePropteryDescriptorMessage(reader);
 				break;
 
@@ -343,18 +344,26 @@ namespace EntityNetwork
 
 				PropertyEvents.Call(PropertyEventTypes::RPCRegistered, [&desc](auto func) {func(nullptr, desc->RPCDefintion.ID); });
 			}
-			else if (reader.Command == MessageCodes::RemoveControllerProperty)
+			else if (reader.Command == MessageCodes::AddEntityDef)
 			{
-				auto id = reader.ReadInt();
-
-				PropertyEvents.Call(PropertyEventTypes::ControllerPropertyDefRemoved, [id](auto func) {func(nullptr,id); });
-				EntityControllerProperties.EraseIf([id](PropertyDesc& desc) {return desc.ID == id; });
-
-				if (Self != nullptr)	// if we are connected, fix all the other peers
+				EntityDesc def;
+				def.ID = reader.ReadInt();
+				def.Name = reader.ReadString();
+				def.IsAvatar = reader.ReadBool();
+				def.Child = reader.ReadBool();
+				def.AllowClientCreate = reader.ReadBool();
+				def.ParrentTypeID = reader.ReadInt();
+				while (reader.Done())
 				{
-					SetupEntityController(static_cast<EntityController&>(*Self));
-					Peers.DoForEach([this](auto id, auto peer) {SetupEntityController(*peer); });
+					PropertyDesc prop;
+					prop.ID = reader.ReadInt();
+					prop.Scope = static_cast<PropertyDesc::Scopes>(reader.ReadByte());
+					prop.Name = reader.ReadString();
+					prop.DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
 				}
+
+				EntityDefs.Insert(def.ID, def);
+				PropertyEvents.Call(PropertyEventTypes::EntityDefAdded, [&def](auto func) {func(nullptr, def.ID); });
 			}
 		}
 	}

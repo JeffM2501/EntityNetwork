@@ -51,6 +51,15 @@ namespace EntityNetwork
 		// cache stuff here
 	}
 
+	EntityDesc* World::GetEntityDef(int index)
+	{
+		auto def = EntityDefs.Find(index);
+		if (def == std::nullopt)
+			return nullptr;
+
+		return &(*def);
+	}
+
 	void World::SetupEntityController(EntityController& controller)
 	{
 		controller.SetPropertyInfo(EntityControllerProperties);
