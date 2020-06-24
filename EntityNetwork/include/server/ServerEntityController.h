@@ -23,6 +23,8 @@
 
 #include "EntityController.h"
 #include "MutexedMessageBuffer.h"
+#include "MutexedMap.h"
+#include "Entity.h"
 #include "server/ServerWorld.h"
 #include <mutex>
 
@@ -52,6 +54,8 @@ namespace EntityNetwork
 
 			typedef std::shared_ptr<ServerEntityController> Ptr;
 			typedef std::function<ServerEntityController::Ptr(int64_t)> CreateFunction;
+
+			MutexedMap<int64_t, KnownEnityDataset> KnownEnitities;
 
 		protected:
 			friend class ServerWorld;

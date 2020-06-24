@@ -34,7 +34,7 @@ namespace EntityNetwork
 
 			std::vector<MessageBuffer::Ptr> pendingMods;
 			MessageBufferBuilder builder;
-			builder.Command = MessageCodes::SetControllerPropertyValues;
+			builder.Command = MessageCodes::SetControllerPropertyDataValues;
 			for (auto prop : Self->GetDirtyProperties())
 			{
 				if (prop->Descriptor.UpdateFromClient())
@@ -56,7 +56,7 @@ namespace EntityNetwork
 			switch (reader.Command)
 			{
 			case MessageCodes::AddWordDataDef:
-			case MessageCodes::AddControllerProperty:
+			case MessageCodes::AddControllerPropertyDef:
 			case MessageCodes::AddRPCDef:
 			case MessageCodes::AddEntityDef:
 				HandlePropteryDescriptorMessage(reader);
@@ -103,7 +103,7 @@ namespace EntityNetwork
 			case MessageCodes::RemoveController:
 				break;
 
-			case MessageCodes::SetControllerPropertyValues:
+			case MessageCodes::SetControllerPropertyDataValues:
 			{
 				auto subject = PeerFromID(reader.ReadID());
 				if (subject != nullptr)
@@ -294,7 +294,7 @@ namespace EntityNetwork
 			if (EntityControllerProperties.Size() == 0 && WorldProperties.Size() == 0 && RemoteProcedures.Size() == 0) // first data of anything we get is property descriptors
 				StateEvents.Call(StateEventTypes::Negotiating, [](auto func) {func(StateEventTypes::Negotiating); });
 
-			if (reader.Command == MessageCodes::AddControllerProperty)
+			if (reader.Command == MessageCodes::AddControllerPropertyDef)
 			{
 				PropertyDesc desc;
 				desc.ID = reader.ReadInt();

@@ -90,7 +90,7 @@ namespace EntityNetwork
 			}
 		}
 
-		typedef std::function<bool(K&, V&)> KeyValueBoolFunction;
+		typedef std::function<bool(const K&, V&)> KeyValueBoolFunction;
 
 		inline void DoForEachUntil(KeyValueBoolFunction function)
 		{
@@ -112,6 +112,17 @@ namespace EntityNetwork
 				else
 					itr++;
 			}	
+		}
+
+		inline std::optional<V> FindIF(KeyValueBoolFunction function)
+		{
+			MutexGuardian guardian(DataMutex);
+			for (auto itr = Data.begin(); itr != Data.end(); itr++)
+			{
+				if (function(itr->first, itr->second))
+					return itr->second;
+			}
+			return std::nullopt;
 		}
 	};
 }

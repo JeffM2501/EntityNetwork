@@ -19,19 +19,48 @@
 //	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 //	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //	SOFTWARE.
-#pragma once
-
-#include "Entity.h"
-#include "EntityController.h"
-#include "World.h"
-#include "Messages.h"
 #include "server/ServerWorld.h"
-#include "client/ClientWorld.h"
-#include "MutexedMessageBuffer.h"
-#include "MutexedMap.h"
-#include "MutexedVector.h"
+#include "EntityNetwork.h"
 
-namespace EntityFramework
+namespace EntityNetwork
 {
-#define PROTOCOL_HEADER "ENT_NET_V01"
+	namespace Server
+	{
+		int ServerWorld::RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize)
+		{
+			int index = World::RegisterWorldPropertyData(name, dataType, dataSize);
+
+			SendToAll(BuildWorldPropertySetupMessage(index));
+			SendToAll(BuildWorldPropertyDataMessage(index));
+
+			return index;
+		}
+
+		MessageBuffer::Ptr ServerWorld::BuildWorldPropertySetupMessage(int index)
+		{
+			PropertyData::Ptr data = WorldProperties.Get(index);
+
+			MessageBufferBuilder builder;
+			builder.Command = MessageCodes::AddWordDataDef;
+			builder.AddInt(index);
+			builder.AddString(data->Descriptor.Name);
+			builder.AddByte(static_cast<int>(data->Descriptor.DataType));
+			auto msg = builder.Pack();
+			WorldPropertyDefCache.PushBack(msg);
+
+			return msg;
+		}
+
+		MessageBuffer::Ptr ServerWorld::BuildWorldPropertyDataMessage(int index)
+		{
+			auto data = WorldProperties[index];
+
+			MessageBufferBuilder builder;
+			builder.Command = MessageCodes::SetWorldDataValues;
+			data->PackValue(builder);
+			auto msg = builder.Pack();
+			return msg;
+		}
+
+	}
 }

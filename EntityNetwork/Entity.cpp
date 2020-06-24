@@ -19,19 +19,30 @@
 //	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 //	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //	SOFTWARE.
-#pragma once
 
 #include "Entity.h"
-#include "EntityController.h"
-#include "World.h"
-#include "Messages.h"
-#include "server/ServerWorld.h"
-#include "client/ClientWorld.h"
-#include "MutexedMessageBuffer.h"
-#include "MutexedMap.h"
-#include "MutexedVector.h"
 
-namespace EntityFramework
+namespace EntityNetwork
 {
-#define PROTOCOL_HEADER "ENT_NET_V01"
+	bool EntityInstance::Dirty()
+	{
+		bool dirty = false;
+		Properties.DoForEach([&dirty](PropertyData::Ptr ptr) {if (ptr->IsDirty()) dirty = false; });
+		return dirty;
+	}
+
+	std::vector<PropertyData::Ptr> EntityInstance::GetDirtyProperties(KnownEnityDataset& knownSet)
+	{
+		int index = 0;
+		std::vector<PropertyData::Ptr> dirtyList;
+
+		Properties.DoForEach([&index, &dirtyList, &knownSet](PropertyData::Ptr ptr) 
+			{
+				if (index >= knownSet.DataRevisions.size() || knownSet.DataRevisions[index] != ptr->GetRevision())
+					dirtyList.push_back(ptr);
+				index++;
+			});
+
+		return dirtyList;
+	}
 }

@@ -21,20 +21,44 @@
 //	SOFTWARE.
 #pragma once
 
-#include <memory>
 #include <vector>
-#include <string>
-#include <map>
-#include <functional>
+
+#include "MutexedVector.h"
+#include "PropertyData.h"
+#include "EntityDescriptor.h"
 
 namespace EntityNetwork
 {
-	class Entity
+	class KnownEnityDataset
 	{
 	public:
-		size_t OwnerID = 0;
-		int32_t EntityID = 0;
+		std::vector<revision_t> DataRevisions;
+	};
 
+
+	class EntityInstance
+	{
+	public:
+		static const int64_t InvalidID = -1;
+
+		int64_t ID = InvalidID;
+		int64_t OwnerID = InvalidID;
+		const EntityDesc& Descriptor;
+
+		MutexedVector<PropertyData::Ptr> Properties;
+
+		EntityInstance(const EntityDesc& desc) : Descriptor(desc) {}
+
+		bool Dirty();
+
+		std::vector<PropertyData::Ptr> GetDirtyProperties(KnownEnityDataset& knownSet);
+
+		typedef std::shared_ptr<EntityInstance> Ptr;
+
+		static Ptr MakeShared(const EntityDesc& desc)
+		{
+			return std::make_shared<EntityInstance>(desc);
+		}
 
 	protected:
 	};

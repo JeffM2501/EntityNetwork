@@ -87,6 +87,12 @@ namespace EntityNetwork
 			// entity definitions
 			virtual int RegisterEntityDesc(EntityDesc& desc);
 
+			// entities
+			MutexedMap<int64_t, EntityInstance::Ptr> EntityInstances;
+
+			virtual int64_t CreateInstance(int entityTypeID, int64_t ownerID);
+			virtual int64_t CreateInstance(const std::string& entityType, int64_t ownerID);
+
 			// events
 			enum class ControllerEventTypes
 			{

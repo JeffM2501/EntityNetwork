@@ -32,16 +32,21 @@
 
 namespace EntityNetwork
 {
+	typedef unsigned char revision_t;
+
 	class PropertyData
 	{
 	private:
 		bool Dirty = false;
 		std::mutex DirtyMutex;
 
+		revision_t Revision = 0;
+
 		void SetDirty()
 		{
 			MutexGuardian guard(DirtyMutex);
 			Dirty = true;
+			Revision++;
 		}
 
 	public:
@@ -57,6 +62,12 @@ namespace EntityNetwork
 		{
 			MutexGuardian guard(DirtyMutex);
 			return Dirty;
+		}
+
+		inline revision_t GetRevision()
+		{
+			MutexGuardian guard(DirtyMutex);
+			return Revision;
 		}
 
 		inline void SetClean()
