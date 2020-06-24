@@ -95,6 +95,30 @@ namespace EntityNetwork
 			return GetRPCArgs(procDef->RPCDefintion.ID);
 		}
 
+		void ServerWorld::ProcessRPCall(ServerEntityController::Ptr peer, MessageBufferReader& reader)
+		{
+			int id = reader.ReadInt();
+			auto rpc = GetRPCDef(id);
+
+			if (rpc == nullptr || rpc->RPCFunction == nullptr || rpc->RPCDefintion.Scope != RemoteProcedureDef::Scopes::ClientToServer)
+				return;
+
+			std::vector<PropertyData::Ptr> args = GetRPCArgs(id);
+			int argIndex = 0;
+			while (!reader.Done())
+			{
+				if (argIndex > args.size())
+					break;
+
+				reader.ReadByte();// just skip the ID, we know it's always in order
+				args[argIndex]->UnpackValue(reader, true);
+
+				argIndex++;
+			}
+
+			ExecuteRemoteProcedureFunction(id, peer, args);
+		}
+
 		void ServerWorld::ExecuteRemoteProcedureFunction(int index, ServerEntityController::Ptr sender, std::vector<PropertyData::Ptr>& arguments)
 		{
 			auto procDef = GetRPCDef(index);

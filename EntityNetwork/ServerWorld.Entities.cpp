@@ -65,7 +65,7 @@ namespace EntityNetwork
 		int64_t ServerWorld::CreateInstance(int entityTypeID, int64_t ownerID)
 		{
 			auto entDef = EntityDefs.Find(entityTypeID);
-			if (entDef == std::nullopt)
+			if (entDef == std::nullopt || entDef->AllowClientCreate) // invalid or client only create
 				return EntityInstance::InvalidID;
 
 			EntityInstance::Ptr ent = EntityInstance::MakeShared(*entDef);
@@ -82,6 +82,72 @@ namespace EntityNetwork
 				return EntityInstance::InvalidID;
 
 			return CreateInstance(ent->ID, ownerID);
+		}
+
+		void ServerWorld::ProcessClientEntityAdd(ServerEntityController::Ptr peer, MessageBufferReader& reader)
+		{
+
+		}
+
+		void ServerWorld::ProcessClientEntityUpdate(ServerEntityController::Ptr peer, MessageBufferReader& reader)
+		{
+
+		}
+
+		/*
+		Future logic, check avatar entities to see what is near and add them as known entities, remove items outside of range.
+		Then just update known entities for each controller
+		*/
+
+		void ServerWorld::ProcessEntityUpdates()
+		{
+			RemoteEnitityControllers.DoForEach([this](auto& key, ServerEntityController::Ptr& peer)
+				{
+					EntityInstances.DoForEach([this,&peer](int64_t& id, EntityInstance::Ptr entity)
+						{
+							auto knownEnt = peer->KnownEnitities.Find(id);
+							if (knownEnt == std::nullopt)	// if the client has never seen this entity, send it to them (TODO, check if it's in range once we have spatial)
+							{
+								MessageBufferBuilder addMsg;
+								addMsg.Command = MessageCodes::AddEntity;
+								addMsg.AddID(id);
+								addMsg.AddID(entity->OwnerID);
+								
+								KnownEnityDataset& dataset = peer->KnownEnitities.Insert(id, KnownEnityDataset());
+								entity->Properties.DoForEach([&addMsg, &dataset](PropertyData::Ptr prop) 
+									{
+										// always pack all values when the server sends an entity
+										prop->PackValue(addMsg); dataset.DataRevisions.push_back(prop->GetRevision());
+									});
+								Send(peer, addMsg);
+							}
+							else
+							{
+								std::vector<PropertyData::Ptr> dirtyProps;
+								int index = 0;
+								// check all the properties find ones that have not been sent to the controller
+								entity->Properties.DoForEach([&knownEnt, &dirtyProps, &index](PropertyData::Ptr prop)
+									{
+										auto rev = prop->GetRevision();
+										if (rev != knownEnt->DataRevisions[index] && prop->Descriptor.TransmitDef()) // different and we sync it
+											dirtyProps.push_back(prop);
+										knownEnt->DataRevisions[index] = rev;
+									});
+
+								MessageBufferBuilder updateMsg;
+								updateMsg.Command = MessageCodes::SetEntityDataValues;
+								updateMsg.AddID(id);
+
+								for (auto p : dirtyProps)
+								{
+									p->PackValue(updateMsg);
+								}
+
+								Send(peer, updateMsg);
+							}
+						});
+
+				});
 		}
 	}
 }

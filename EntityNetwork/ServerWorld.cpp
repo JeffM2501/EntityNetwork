@@ -70,7 +70,7 @@ namespace EntityNetwork
 			for (auto msg : pendingGlobalUpdates)
 				SendToAll(msg);
 
-			// find any new entities around each avatar and send those
+			ProcessEntityUpdates();
 		}
 
 		void ServerWorld::AddInboundData(int64_t id, MessageBuffer::Ptr inbound)
@@ -86,42 +86,19 @@ namespace EntityNetwork
 				{
 
 				case MessageCodes::SetControllerPropertyDataValues:
-				{
-					while (!reader.Done())
-					{
-						int propertyID = reader.ReadInt();
-						auto prop = peer->FindPropertyByID(propertyID);
-						if (prop == nullptr)
-							reader.End();
-						else
-							prop->UnpackValue(reader, prop->Descriptor.UpdateFromClient());
-					}
-				}
+					ProcessControllerDataUpdate(peer, reader);
 				break;
 
 				case MessageCodes::CallRPC:
-				{
-					int id = reader.ReadInt();
-					auto rpc = GetRPCDef(id);
+					ProcessRPCall(peer, reader);
+					break;
 
-					if (rpc == nullptr || rpc->RPCFunction == nullptr || rpc->RPCDefintion.Scope != RemoteProcedureDef::Scopes::ClientToServer)
-						break;
+				case MessageCodes::AddEntity:
+					ProcessClientEntityAdd(peer, reader);
+					break;
 
-					std::vector<PropertyData::Ptr> args = GetRPCArgs(id);
-					int argIndex = 0;
-					while (!reader.Done())
-					{
-						if (argIndex > args.size())
-							break;
-
-						reader.ReadByte();// just skip the ID, we know it's always in order
-						args[argIndex]->UnpackValue(reader, true);
-
-						argIndex++;
-					}
-
-					ExecuteRemoteProcedureFunction(id, peer, args);
-				}
+				case MessageCodes::SetEntityDataValues:
+					ProcessClientEntityUpdate(peer, reader);
 					break;
 
 				// server can't get these, it only sends them

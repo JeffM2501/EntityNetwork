@@ -109,6 +109,7 @@ namespace EntityNetwork
 			MutexedVector<MessageBuffer::Ptr> WorldPropertyDefCache;
 			MutexedVector<MessageBuffer::Ptr> RPCDefCache;
 			MutexedVector<MessageBuffer::Ptr> EntityDefCache;
+			MutexedVector<std::shared_ptr<ServerRPCDef>> RemoteProcedures;
 
 			MessageBuffer::Ptr BuildControllerPropertySetupMessage(PropertyDesc& desc);
 			MessageBuffer::Ptr BuildWorldPropertySetupMessage(int index);
@@ -123,7 +124,12 @@ namespace EntityNetwork
 
 			virtual void ExecuteRemoteProcedureFunction(int index, ServerEntityController::Ptr sender, std::vector<PropertyData::Ptr>& arguments);
 
-			MutexedVector<std::shared_ptr<ServerRPCDef>> RemoteProcedures;
+			virtual void ProcessEntityUpdates();
+			virtual void ProcessRPCall(ServerEntityController::Ptr peer, MessageBufferReader& reader);
+			virtual void ProcessControllerDataUpdate(ServerEntityController::Ptr peer, MessageBufferReader& reader);
+
+			virtual void ProcessClientEntityAdd(ServerEntityController::Ptr peer, MessageBufferReader& reader);
+			virtual void ProcessClientEntityUpdate(ServerEntityController::Ptr peer, MessageBufferReader& reader);
 		};
 	}
 }

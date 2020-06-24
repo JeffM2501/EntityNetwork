@@ -35,7 +35,6 @@ namespace EntityNetwork
 		std::vector<revision_t> DataRevisions;
 	};
 
-
 	class EntityInstance
 	{
 	public:

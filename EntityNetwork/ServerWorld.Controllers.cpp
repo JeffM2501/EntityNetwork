@@ -158,6 +158,17 @@ namespace EntityNetwork
 			return msg;
 		}
 
-
+		void ServerWorld::ProcessControllerDataUpdate(ServerEntityController::Ptr peer, MessageBufferReader& reader)
+		{
+			while (!reader.Done())
+			{
+				int propertyID = reader.ReadInt();
+				auto prop = peer->FindPropertyByID(propertyID);
+				if (prop == nullptr)
+					reader.End();
+				else
+					prop->UnpackValue(reader, prop->Descriptor.UpdateFromClient());
+			}
+		}
 	}
 }
