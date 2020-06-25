@@ -86,12 +86,68 @@ namespace EntityNetwork
 
 		void ServerWorld::ProcessClientEntityAdd(ServerEntityController::Ptr peer, MessageBufferReader& reader)
 		{
+			auto entityTypeID = reader.ReadInt();
+			auto localID = reader.ReadID();
 
+			auto entDef = EntityDefs.Find(entityTypeID);
+			if (entDef == std::nullopt || !entDef->AllowClientCreate) // invalid or server only create
+			{
+				MessageBufferBuilder denyMessage;
+				denyMessage.Command = MessageCodes::AcceptClientController;
+				denyMessage.AddID(-1);
+				denyMessage.AddID(localID);
+				Send(peer, denyMessage);
+				return;
+			}
+
+			EntityInstance::Ptr ent = EntityInstance::MakeShared(*entDef);
+			ent->ID = EntityInstances.Size();
+			ent->OwnerID = peer->ID;
+
+			int index = 0;
+			while (!reader.Done())
+			{
+				auto ptr = ent->Properties.TryGet(index);
+				if (ptr != nullptr)
+				{
+					(*ptr)->UnpackValue(reader, true);
+				}
+				index++;
+			}
+			EntityInstances.Insert(ent->ID, ent);
+			
+			// send back the acceptance
+			MessageBufferBuilder ackMsg;
+			ackMsg.Command = MessageCodes::AcceptClientController;
+			ackMsg.AddID(ent->ID);
+			ackMsg.AddID(localID);
+			Send(peer, ackMsg);
 		}
 
 		void ServerWorld::ProcessClientEntityUpdate(ServerEntityController::Ptr peer, MessageBufferReader& reader)
 		{
+			auto entityID = reader.ReadID();
+			auto ent = EntityInstances.Find(entityID);
+			if (ent == std::nullopt)
+				return;
 
+			if (!(*ent)->Descriptor.AllowClientCreate)
+			{
+				auto known = peer->KnownEnitities.Find(entityID);
+				if (known != std::nullopt)
+					peer->KnownEnitities[entityID].DataRevisions.clear();
+				return;
+			}
+
+			while (!reader.Done())
+			{
+				auto propID = reader.ReadInt();
+				auto prop = (*ent)->Properties.TryGet(propID);
+				if (prop != nullptr)
+				{
+					(*prop)->UnpackValue(reader, (*prop)->Descriptor.UpdateFromClient());
+				}
+			}
 		}
 
 		/*
@@ -111,6 +167,7 @@ namespace EntityNetwork
 								MessageBufferBuilder addMsg;
 								addMsg.Command = MessageCodes::AddEntity;
 								addMsg.AddID(id);
+								addMsg.AddInt(entity->Descriptor.ID);
 								addMsg.AddID(entity->OwnerID);
 								
 								KnownEnityDataset& dataset = peer->KnownEnitities.Insert(id, KnownEnityDataset());

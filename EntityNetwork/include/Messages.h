@@ -50,6 +50,7 @@ namespace EntityNetwork
 		// entities
 		AddEntity,
 		RemoveEntity,
+		AcceptClientController,
 
 		// data updates
 		SetControllerPropertyDataValues,

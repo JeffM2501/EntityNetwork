@@ -23,6 +23,14 @@
 
 namespace EntityNetwork
 {
+	EntityInstance::EntityInstance(const EntityDesc& desc) : Descriptor(desc)
+	{
+		for (auto& prop : Descriptor.Properties)
+		{
+			Properties.PushBack(PropertyData::MakeShared(prop));
+		}
+	}
+
 	bool EntityInstance::Dirty()
 	{
 		bool dirty = false;

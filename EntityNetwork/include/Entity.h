@@ -46,7 +46,7 @@ namespace EntityNetwork
 
 		MutexedVector<PropertyData::Ptr> Properties;
 
-		EntityInstance(const EntityDesc& desc) : Descriptor(desc) {}
+		EntityInstance(const EntityDesc& desc);
 
 		bool Dirty();
 
