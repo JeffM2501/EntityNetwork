@@ -32,6 +32,8 @@ namespace EntityNetwork
 			if (Self == nullptr || EntityControllerProperties.Size() == 0)
 				return;
 
+			ProcessLocalEntities();
+
 			std::vector<MessageBuffer::Ptr> pendingMods;
 			MessageBufferBuilder builder;
 			builder.Command = MessageCodes::SetControllerPropertyDataValues;
@@ -71,55 +73,14 @@ namespace EntityNetwork
 			break;
 
 			case MessageCodes::AddController:
-			{
-				auto id = reader.ReadID();
-				ClientEntityController::Ptr subject = nullptr;
-
-				if (Self != nullptr && id == Self->GetID())
-					subject = Self;
-				else
-				{
-					subject = CreateController(id, false);
-					Peers.Insert(id, subject);
-				}
-				SetupEntityController(static_cast<EntityController&>(*subject));
-
-				while (!reader.Done())
-				{
-					auto prop = subject->FindPropertyByID(reader.ReadByte());
-					if (prop == nullptr)
-						break;
-					prop->UnpackValue(reader, true); // always save the initial data 
-				}
-				
-				ControllerEvents.Call(subject->IsSelf ? ControllerEventTypes::SelfCreated : ControllerEventTypes::RemoteCreated, [&subject](auto func) {func(subject); });
-				subject->GetDirtyProperties(); // just clear out anything that god dirty due to an unpack, we always start clean
-
-				if (subject->IsSelf)
-					StateEvents.Call(StateEventTypes::ActiveSyncing, [](auto func) {func(StateEventTypes::ActiveSyncing); });
-			}
-			break;
+				ProcessAddController(reader);
+				break;
 
 			case MessageCodes::RemoveController:
 				break;
 
 			case MessageCodes::SetControllerPropertyDataValues:
-			{
-				auto subject = PeerFromID(reader.ReadID());
-				if (subject != nullptr)
-				{
-					while (!reader.Done())
-					{
-						auto prop = subject->FindPropertyByID(reader.ReadByte());
-						prop->UnpackValue(reader, prop->Descriptor.UpdateFromServer());
-						
-						if (prop->Descriptor.UpdateFromServer())
-							PropertyEvents.Call(subject->IsSelf ? PropertyEventTypes::SelfPropteryChanged : PropertyEventTypes::RemoteControllerPropertyChanged, [&subject,&prop](auto func) {func(subject, prop->Descriptor.ID); });
-
-						prop->SetClean(); // remote properties are never dirty, only locally set ones
-					}
-				}
-			}
+				ProcessSetControllerPropertyData(reader);
 			break;
 
 			case MessageCodes::SetWorldDataValues:
@@ -136,128 +97,29 @@ namespace EntityNetwork
 				break;
 
 			case MessageCodes::CallRPC:
-			{
-				int id = reader.ReadInt();
-				auto rpc = GetRPCDef(id);
+				ProcessRPC(reader);
+				break;
 
-				if (rpc == nullptr || rpc->RPCFunction == nullptr || rpc->RPCDefintion.Scope == RemoteProcedureDef::Scopes::ClientToServer)
-					break;
+			case MessageCodes::AddEntity:
+				ProcessAddEntity(reader);
+				break;
 
-				std::vector<PropertyData::Ptr> args = GetRPCArgs(id);
-				int argIndex = 0;
-				while (!reader.Done())
-				{
-					if (argIndex > args.size())
-						break;
+			case MessageCodes::RemoveEntity:
+				ProcessRemoveEntity(reader);
+				break;
 
-					reader.ReadByte(); // skip the id we know the order from the function defintion
-					args[argIndex]->UnpackValue(reader,true);
+			case MessageCodes::AcceptClientEntity:
+				ProcessAcceptClientAddEntity(reader);
+				break;
 
-					argIndex++;
-				}
-
-				ExecuteRemoteProcedureFunction(id, args);
-			}
-			break;
+			case MessageCodes::SetEntityDataValues:
+				ProcessEntityDataChange(reader);
+				break;
 
 			case MessageCodes::NoOp:
 			default:
 				break;
 			}
-		}
-
-		void ClientWorld::AssignRemoteProcedureFunction(const std::string& name, ClientRPCFunction function)
-		{
-			auto rpc = GetRPCDef(name);
-			if (rpc == nullptr) // keep the function pointer around in case we get the function definition later
-				CacheedRPCFunctions[name] = function;
-			else
-				rpc->RPCFunction = function;
-		}
-
-		void  ClientWorld::AssignRemoteProcedureFunction(int id, ClientRPCFunction function)
-		{
-			auto rpc = GetRPCDef(id);
-			if (rpc != nullptr)
-				rpc->RPCFunction = function;
-		}
-
-
-		ClientWorld::ClientRPCDef::Ptr ClientWorld::GetRPCDef(int index)
-		{
-			auto procDef = RemoteProcedures.TryGet(index);
-			if (procDef == nullptr)
-				return nullptr;
-
-			return *procDef;
-		}
-
-		ClientWorld::ClientRPCDef::Ptr ClientWorld::GetRPCDef(const std::string& name)
-		{
-			auto procDef = RemoteProcedures.FindFirstMatch([name](ClientRPCDef::Ptr p) {return p->RPCDefintion.Name == name; });
-			if (procDef == std::nullopt)
-				return nullptr;
-
-			return *procDef;
-		}
-
-		std::vector<PropertyData::Ptr> ClientWorld::GetRPCArgs(int index)
-		{
-			std::vector<PropertyData::Ptr> args;
-
-			auto procDef = GetRPCDef(index);
-			if (procDef == nullptr)
-				return args;
-
-			for (auto& argDef : procDef->RPCDefintion.ArgumentDefs)
-				args.push_back(PropertyData::MakeShared(argDef));
-
-			return args;
-		}
-
-		std::vector<PropertyData::Ptr> ClientWorld::GetRPCArgs(const std::string& name)
-		{
-			auto procDef = GetRPCDef(name);
-			if (procDef == nullptr)
-				return std::vector<PropertyData::Ptr>();
-
-			return GetRPCArgs(procDef->RPCDefintion.ID);
-		}
-
-		bool ClientWorld::CallRPC(int index, std::vector<PropertyData::Ptr>& args)
-		{
-			auto procPtr = GetRPCDef(index);
-
-			if (procPtr == nullptr || procPtr->RPCDefintion.Scope != RemoteProcedureDef::Scopes::ClientToServer)
-				return false;
-
-			MessageBufferBuilder builder;
-			builder.Command = MessageCodes::CallRPC;
-			builder.AddInt(index);
-			for (PropertyData::Ptr arg : args)
-				arg->PackValue(builder);
-			
-			Send(builder.Pack());
-
-			return true;
-		}
-
-		bool ClientWorld::CallRPC(const std::string& name, std::vector<PropertyData::Ptr>& args)
-		{
-			auto procPtr = GetRPCDef(name);
-			if (procPtr == nullptr)
-				return false;
-
-			return CallRPC(procPtr->RPCDefintion.ID, args);
-		}
-
-		void ClientWorld::ExecuteRemoteProcedureFunction(int index, std::vector<PropertyData::Ptr>& arguments)
-		{
-			auto procDef = GetRPCDef(index);
-			if (procDef == nullptr || procDef->RPCFunction == nullptr || procDef->RPCDefintion.Scope == RemoteProcedureDef::Scopes::ClientToServer)
-				return;
-
-			procDef->RPCFunction(arguments);
 		}
 
 		MessageBuffer::Ptr ClientWorld::PopOutboundData()
@@ -350,9 +212,7 @@ namespace EntityNetwork
 				def.ID = reader.ReadInt();
 				def.Name = reader.ReadString();
 				def.IsAvatar = reader.ReadBool();
-				def.Child = reader.ReadBool();
-				def.AllowClientCreate = reader.ReadBool();
-				def.ParrentTypeID = reader.ReadInt();
+				def.CreateScope = static_cast<EntityDesc::CreateScopes>(reader.ReadByte());
 				while (reader.Done())
 				{
 					PropertyDesc prop;

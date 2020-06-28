@@ -40,7 +40,7 @@ namespace EntityNetwork
 		EntityController(int64_t id):ID(id) {}
 		virtual ~EntityController() {}
 
-		inline size_t GetID() { return ID; }
+		inline int64_t GetID() { return ID; }
 
 		typedef std::shared_ptr<EntityController> Ptr;
 

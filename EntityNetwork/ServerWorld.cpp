@@ -97,6 +97,10 @@ namespace EntityNetwork
 					ProcessClientEntityAdd(peer, reader);
 					break;
 
+				case MessageCodes::RemoveEntity:
+					ProcessClientEntityRemove(peer, reader);
+					break;
+
 				case MessageCodes::SetEntityDataValues:
 					ProcessClientEntityUpdate(peer, reader);
 					break;

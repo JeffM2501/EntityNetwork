@@ -78,6 +78,13 @@ namespace EntityNetwork
 			return std::nullopt;
 		}
 
+		inline bool ContainsKey(K key)
+		{
+			MutexGuardian guardian(DataMutex);
+			auto itr = Data.find(key);
+			return (itr != Data.end());
+		}
+
 		typedef std::function<void(K&, V&)> KeyValueFunction;
 		inline void DoForEach(KeyValueFunction function)
 		{
@@ -99,6 +106,20 @@ namespace EntityNetwork
 			{
 				if (function(itr->first, itr->second))
 					break;
+			}
+		}
+
+		inline void DoForEachIf(KeyValueBoolFunction filter, KeyValueFunction function)
+		{
+			MutexGuardian guardian(DataMutex);
+			for (auto itr = Data.begin(); itr != Data.end(); itr++)
+			{
+				if (filter(itr->first, itr->second))
+				{
+					K k = itr->first;
+					V v = itr->second;
+					function(k,v);
+				}
 			}
 		}
 

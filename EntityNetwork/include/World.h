@@ -32,15 +32,21 @@
 
 namespace EntityNetwork
 {
+	// common fucntions for both client and server worlds
 	class World
 	{
 	public:
+
+		// register a controller property descriptor (may be overridden)
 		virtual int RegisterControllerPropertyDesc(PropertyDesc& desc);
 		virtual int RegisterControllerProperty(const std::string& name, PropertyDesc::DataTypes dataType, size_t bufferSize = 0, PropertyDesc::Scopes scope = PropertyDesc::Scopes::BidirectionalSync, bool isPrivate = false);
 
+		// register a world property descriptor (may be overridden)
 		virtual int RegisterWorldPropertyDesc(PropertyDesc& desc);
 		virtual int RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize = 0);
 
+
+		// get the data for a world property, data set will be synced to all clients
 		PropertyData::Ptr GetWorldPropertyData(int id);
 		PropertyData::Ptr GetWorldPropertyData(const std::string& name);
 

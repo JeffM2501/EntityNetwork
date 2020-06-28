@@ -38,7 +38,7 @@ namespace EntityNetwork
 	class EntityInstance
 	{
 	public:
-		static const int64_t InvalidID = -1;
+		static const int64_t InvalidID = -9223372036854775807;
 
 		int64_t ID = InvalidID;
 		int64_t OwnerID = InvalidID;
@@ -53,10 +53,18 @@ namespace EntityNetwork
 		std::vector<PropertyData::Ptr> GetDirtyProperties(KnownEnityDataset& knownSet);
 
 		typedef std::shared_ptr<EntityInstance> Ptr;
+		typedef std::function<EntityInstance::Ptr(const EntityDesc&, int64_t id)> CreateFunction;
 
-		static Ptr MakeShared(const EntityDesc& desc)
+		virtual inline void SetID(int64_t id) { ID = id; }
+
+		static inline Ptr MakeShared(const EntityDesc& desc)
 		{
 			return std::make_shared<EntityInstance>(desc);
+		}
+
+		static inline bool CanSyncFunc(int64_t id, Ptr ent)
+		{
+			return ent != nullptr && ent->Descriptor.SyncCreate();
 		}
 
 	protected:

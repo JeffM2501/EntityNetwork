@@ -109,7 +109,10 @@
     <ClInclude Include="include\World.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ClientWorld.Controllers.cpp" />
     <ClCompile Include="ClientWorld.cpp" />
+    <ClCompile Include="ClientWorld.Entities.cpp" />
+    <ClCompile Include="ClientWorld.RPC.cpp" />
     <ClCompile Include="Entity.cpp" />
     <ClCompile Include="EntityController.cpp" />
     <ClCompile Include="EntityNetwork.cpp" />

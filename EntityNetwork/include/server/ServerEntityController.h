@@ -35,6 +35,11 @@ namespace EntityNetwork
 		class ServerEntityController : public EntityController
 		{
 		public:
+			typedef std::shared_ptr<ServerEntityController> Ptr;
+			typedef std::function<ServerEntityController::Ptr(int64_t)> CreateFunction;
+
+			MutexedMap<int64_t, KnownEnityDataset> KnownEnitities;
+
 			ServerEntityController(int64_t id) : EntityController(id) {}
 
 			inline virtual void AddInbound(MessageBuffer::Ptr message)
@@ -51,12 +56,6 @@ namespace EntityNetwork
 			{
 				return OutboundMessages.Size();
 			}
-
-			typedef std::shared_ptr<ServerEntityController> Ptr;
-			typedef std::function<ServerEntityController::Ptr(int64_t)> CreateFunction;
-
-			MutexedMap<int64_t, KnownEnityDataset> KnownEnitities;
-
 		protected:
 			friend class ServerWorld;
 

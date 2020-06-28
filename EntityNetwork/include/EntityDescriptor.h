@@ -38,12 +38,32 @@ namespace EntityNetwork
 		std::string Name;
 
 		bool IsAvatar = false;
-		bool Child = false;
-		bool AllowClientCreate = false;
-		
-		int ParrentTypeID = -1;
+	
+		enum class CreateScopes
+		{
+			ClientLocal,
+			ClientSync,
+			ServerLocal,
+			ServerSync,
+		};
+		CreateScopes CreateScope = CreateScopes::ServerSync;
 
 		std::vector<PropertyDesc> Properties;
+
+		inline bool AllowServerCreate() const
+		{
+			return CreateScope == CreateScopes::ServerLocal || CreateScope == CreateScopes::ServerSync;
+		}
+
+		inline bool AllowClientCreate() const
+		{
+			return CreateScope == CreateScopes::ClientLocal || CreateScope == CreateScopes::ClientSync;
+		}
+
+		inline bool SyncCreate() const
+		{
+			return CreateScope == CreateScopes::ServerSync || CreateScope == CreateScopes::ClientSync;
+		}
 
 	protected:
 	};

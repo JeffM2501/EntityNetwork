@@ -27,6 +27,7 @@
 #include "MutexedMap.h"
 #include "MutexedVector.h"
 #include "EventList.h"
+#include "Entity.h"
 
 namespace EntityNetwork
 {
@@ -46,61 +47,94 @@ namespace EntityNetwork
 				typedef std::shared_ptr<ClientRPCDef> Ptr;
 			};
 
+			// called by the system any time it needs to create controller or entity instance objects
+			// derived clients can return derived classes of they want to hang other data off it
 			ClientEntityController::CreateFunction CreateController;
+			EntityInstance::CreateFunction CreateEntityInstance;
 
 			ClientWorld() : World()
 			{
 				CreateController = [](int64_t id, bool self) {return std::make_shared<ClientEntityController>(id); };
+				CreateEntityInstance = [](const EntityDesc& desc, int64_t id) { auto e = EntityInstance::MakeShared(desc); e->SetID(id); return e; };
 			}
 
+			// process any dirty data and build up any outbound data that needs to go out
 			virtual void Update();
 
+			// called to add data packets from the server
 			virtual void AddInboundData(MessageBuffer::Ptr message);
 
+			// remove one outbound message that the library expects to be sent form the server, nullptr if no data is left
 			virtual  MessageBuffer::Ptr PopOutboundData();
 		
 			// events
 			enum class ControllerEventTypes
 			{
-				SelfCreated,
-				RemoteCreated,
-				RemoteDestroyed,
+				SelfCreated,						// client has connected and been given a controller ID
+				RemoteCreated,						// a remote player has been created
+				RemoteDestroyed,					// a remote player has been destroyed
 			};
 			EventList<ControllerEventTypes, std::function<void(ClientEntityController::Ptr)>> ControllerEvents;
 
 			enum class PropertyEventTypes
 			{
-				SelfPropteryChanged,
-				RemoteControllerPropertyChanged,
-				ControllerPropertyDefAdded,
-				WorldPropertyDefAdded,
-				WorldPropertyDataChanged,
-				RPCRegistered,
-				EntityDefAdded,
+				SelfPropteryChanged,				// a property of our local controller has changed
+				RemoteControllerPropertyChanged,	// a property of a remote controller has changed
+				ControllerPropertyDefAdded,			// a new property type for controllers has been registered
+				WorldPropertyDefAdded,				// a new property type for the world has been registered
+				WorldPropertyDataChanged,			// data for a world property has changed
+				RPCRegistered,						// a new Remote Procedure Call has been registered
+				EntityDefAdded,						// a new entity type definition has been registered
 			};
 			EventList<PropertyEventTypes, std::function<void(ClientEntityController::Ptr, int)>> PropertyEvents;
 
 			enum class StateEventTypes
 			{
-				Negotiating,
-				ActiveSyncing,
+				Negotiating,						// The server has connected but is still sending out all definitions and global data
+				ActiveSyncing,						// The connection is working in normal mode, syncing entities as needed
+				Disconnected,						// The connection is not active
 			};
 			EventList<StateEventTypes, std::function<void(StateEventTypes state)>> StateEvents;
 
+			enum class EntityEventTypes
+			{
+				EntityAdded,						// An entity instance has been created from the server
+				EntityRemoved,						// An entity instance has been removed
+				EntityAccepted,						// A locally created entity has been accepted by the server and been given a global ID
+				EntityUpdated,						// Data for an entity instance has been changed
+			};
+			EventList<EntityEventTypes, std::function<void(EntityInstance::Ptr entity)>> EntityEvents;
+
 			// remote procedure calls
+
+			// Assigns a local function to be called when the server triggers a named RPC
 			virtual void AssignRemoteProcedureFunction(const std::string& name, ClientRPCFunction function);
 			virtual void AssignRemoteProcedureFunction(int id, ClientRPCFunction function);
 
+			// finds an RPC definition by name/id
 			ClientRPCDef::Ptr GetRPCDef(int index);
 			ClientRPCDef::Ptr GetRPCDef(const std::string& name);
 
+			// build up an empty set of arguments for an RPC using its data definition
 			std::vector<PropertyData::Ptr> GetRPCArgs(int index);
 			std::vector<PropertyData::Ptr> GetRPCArgs(const std::string& name);
 
+			// Call a RPC on the server using the specified arguments
 			virtual bool CallRPC(int index, std::vector<PropertyData::Ptr>& args);
 			virtual bool CallRPC(const std::string& name, std::vector<PropertyData::Ptr>& args);
 
+			// Create an entity instance and sync it with the server (if the definition allows it), returns local instance ID (<0), for synced entities the server will change the ID to a global ID with the accept event (ID >=0)
+			virtual int64_t CreateInstance(int entityTypeID);
+			virtual int64_t CreateInstance(const std::string& entityType);
+
+			// removes an entity that is locally controlled
+			virtual bool RemoveInstance(int64_t entityID);
+
+			// entities
+			MutexedMap<int64_t, EntityInstance::Ptr> EntityInstances;
+
 		protected:
+			// known peer controllers
 			MutexedMap<int64_t, ClientEntityController::Ptr>	Peers;	// controllers that are fully synced
 			ClientEntityController::Ptr Self; // me
 
@@ -110,11 +144,26 @@ namespace EntityNetwork
 
 			virtual void ExecuteRemoteProcedureFunction(int index, std::vector<PropertyData::Ptr>& arguments);
 
+			void ProcessAddController(MessageBufferReader& reader);
+			void ProcessSetControllerPropertyData(MessageBufferReader& reader);
+			void ProcessRPC(MessageBufferReader& reader);
+			void ProcessAddEntity(MessageBufferReader& reader);
+			void ProcessRemoveEntity(MessageBufferReader& reader);
+			void ProcessAcceptClientAddEntity(MessageBufferReader& reader);
+			void ProcessEntityDataChange(MessageBufferReader& reader);
+
 			MutexedVector<std::shared_ptr<ClientRPCDef>> RemoteProcedures;
 			std::map<std::string, ClientRPCFunction> CacheedRPCFunctions;
 
 		private:
 			void HandlePropteryDescriptorMessage(MessageBufferReader& reader);
+
+			void ProcessLocalEntities();
+
+			int64_t GetNewEntityLocalID();
+			int64_t LastLocalID = 0;
+			std::vector<EntityInstance::Ptr>	NewLocalEntities;
+			std::vector<int64_t>				DeadLocalEntities;
 		};
 	}
 }

@@ -45,9 +45,7 @@ namespace EntityNetwork
 			builder.AddInt(index);
 			builder.AddString(def->Name);
 			builder.AddBool(def->IsAvatar);
-			builder.AddBool(def->Child);
-			builder.AddBool(def->AllowClientCreate);
-			builder.AddInt(def->ParrentTypeID);
+			builder.AddByte(static_cast<int>(def->CreateScope));
 			for (auto& prop : def->Properties)
 			{
 				builder.AddInt(prop.ID);
@@ -65,13 +63,14 @@ namespace EntityNetwork
 		int64_t ServerWorld::CreateInstance(int entityTypeID, int64_t ownerID)
 		{
 			auto entDef = EntityDefs.Find(entityTypeID);
-			if (entDef == std::nullopt || entDef->AllowClientCreate) // invalid or client only create
+			if (entDef == std::nullopt || !entDef->AllowServerCreate()) // invalid or client only create
 				return EntityInstance::InvalidID;
 
-			EntityInstance::Ptr ent = EntityInstance::MakeShared(*entDef);
-			ent->ID = EntityInstances.Size();
+			EntityInstance::Ptr ent = CreateEntityInstance(*entDef, EntityInstances.Size());
 			ent->OwnerID = ownerID;
 			EntityInstances.Insert(ent->ID, ent);
+
+			EntityEvents.Call(EntityEventTypes::EntityAdded, [&ent](auto func) {func(ent); });
 			return ent->ID;
 		}
 
@@ -84,24 +83,45 @@ namespace EntityNetwork
 			return CreateInstance(ent->ID, ownerID);
 		}
 
+		bool ServerWorld::RemoveInstance(int64_t entityID)
+		{
+			auto ent = EntityInstances.Find(entityID);
+			if (ent == std::nullopt)
+				return false;
+
+			EntityInstances.Remove(entityID);
+			EntityEvents.Call(EntityEventTypes::EntityRemoved, [&ent](auto func) {func(*ent); });
+
+			MessageBufferBuilder removeMsg;
+			removeMsg.Command = MessageCodes::RemoveEntity;
+			removeMsg.AddID(entityID);
+			SendToAll(removeMsg.Pack());
+
+			// purge the known entity from the list so we don't try to keep sending it data
+			RemoteEnitityControllers.DoForEach([entityID](auto& key, ServerEntityController::Ptr& peer)
+				{
+					peer->KnownEnitities.Remove(entityID);
+				});
+			return true;
+		}
+
 		void ServerWorld::ProcessClientEntityAdd(ServerEntityController::Ptr peer, MessageBufferReader& reader)
 		{
 			auto entityTypeID = reader.ReadInt();
 			auto localID = reader.ReadID();
 
 			auto entDef = EntityDefs.Find(entityTypeID);
-			if (entDef == std::nullopt || !entDef->AllowClientCreate) // invalid or server only create
+			if (entDef == std::nullopt || !entDef->AllowClientCreate() || !entDef->SyncCreate()) // invalid or server only create
 			{
 				MessageBufferBuilder denyMessage;
-				denyMessage.Command = MessageCodes::AcceptClientController;
+				denyMessage.Command = MessageCodes::AcceptClientEntity;
 				denyMessage.AddID(-1);
 				denyMessage.AddID(localID);
 				Send(peer, denyMessage);
 				return;
 			}
 
-			EntityInstance::Ptr ent = EntityInstance::MakeShared(*entDef);
-			ent->ID = EntityInstances.Size();
+			EntityInstance::Ptr ent = CreateEntityInstance(*entDef, EntityInstances.Size());
 			ent->OwnerID = peer->ID;
 
 			int index = 0;
@@ -115,23 +135,35 @@ namespace EntityNetwork
 				index++;
 			}
 			EntityInstances.Insert(ent->ID, ent);
+			EntityEvents.Call(EntityEventTypes::EntityAdded, [&ent](auto func) {func(ent); });
 			
 			// send back the acceptance
 			MessageBufferBuilder ackMsg;
-			ackMsg.Command = MessageCodes::AcceptClientController;
+			ackMsg.Command = MessageCodes::AcceptClientEntity;
 			ackMsg.AddID(ent->ID);
 			ackMsg.AddID(localID);
 			Send(peer, ackMsg);
+			EntityEvents.Call(EntityEventTypes::EntityAccepted, [&ent](auto func) {func(ent); });
+		}
+
+		void ServerWorld::ProcessClientEntityRemove(ServerEntityController::Ptr peer, MessageBufferReader& reader)
+		{
+			auto entityID = reader.ReadID();
+			auto ent = EntityInstances.Find(entityID);
+			if (ent == std::nullopt || (*ent)->OwnerID != peer->ID || (*ent)->Descriptor.AllowServerCreate() || !(*ent)->Descriptor.SyncCreate())
+				return;
+
+			RemoveInstance(entityID);
 		}
 
 		void ServerWorld::ProcessClientEntityUpdate(ServerEntityController::Ptr peer, MessageBufferReader& reader)
 		{
 			auto entityID = reader.ReadID();
 			auto ent = EntityInstances.Find(entityID);
-			if (ent == std::nullopt)
+			if (ent == std::nullopt || (*ent)->OwnerID != peer->ID)
 				return;
 
-			if (!(*ent)->Descriptor.AllowClientCreate)
+			if (!(*ent)->Descriptor.AllowClientCreate() || !(*ent)->Descriptor.SyncCreate())
 			{
 				auto known = peer->KnownEnitities.Find(entityID);
 				if (known != std::nullopt)
@@ -148,6 +180,7 @@ namespace EntityNetwork
 					(*prop)->UnpackValue(reader, (*prop)->Descriptor.UpdateFromClient());
 				}
 			}
+			EntityEvents.Call(EntityEventTypes::EntityUpdated, [&ent](auto func) {func(*ent); });
 		}
 
 		/*
@@ -159,7 +192,7 @@ namespace EntityNetwork
 		{
 			RemoteEnitityControllers.DoForEach([this](auto& key, ServerEntityController::Ptr& peer)
 				{
-					EntityInstances.DoForEach([this,&peer](int64_t& id, EntityInstance::Ptr entity)
+					EntityInstances.DoForEachIf(EntityInstance::CanSyncFunc, [this, &peer](int64_t& id, EntityInstance::Ptr entity)
 						{
 							auto knownEnt = peer->KnownEnitities.Find(id);
 							if (knownEnt == std::nullopt)	// if the client has never seen this entity, send it to them (TODO, check if it's in range once we have spatial)
@@ -203,7 +236,6 @@ namespace EntityNetwork
 								Send(peer, updateMsg);
 							}
 						});
-
 				});
 		}
 	}
