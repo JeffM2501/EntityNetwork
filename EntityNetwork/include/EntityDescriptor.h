@@ -38,7 +38,7 @@ namespace EntityNetwork
 		std::string Name;
 
 		bool IsAvatar = false;
-	
+
 		enum class CreateScopes
 		{
 			ClientLocal,
@@ -63,6 +63,23 @@ namespace EntityNetwork
 		inline bool SyncCreate() const
 		{
 			return CreateScope == CreateScopes::ServerSync || CreateScope == CreateScopes::ClientSync;
+		}
+
+		inline int AddPropertyDesc(PropertyDesc& desc)
+		{
+			desc.ID = static_cast<int>(Properties.size());
+			Properties.push_back(desc);
+			return desc.ID;
+		}
+
+		inline int AddPropertyDesc(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize = 0)
+		{
+			PropertyDesc desc;
+			desc.Name = name;
+			desc.DataType = dataType;
+			desc.Scope = PropertyDesc::Scopes::BidirectionalSync;
+			desc.BufferSize = dataSize;
+			return AddPropertyDesc(desc);
 		}
 
 	protected:

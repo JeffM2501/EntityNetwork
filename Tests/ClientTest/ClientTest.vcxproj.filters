@@ -18,8 +18,16 @@
     <ClCompile Include="ClientTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ClientTestDisplay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="ClientTest.licenseheader" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ClientTest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

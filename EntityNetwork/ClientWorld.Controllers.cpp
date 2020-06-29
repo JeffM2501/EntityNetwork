@@ -53,7 +53,10 @@ namespace EntityNetwork
 			subject->GetDirtyProperties(); // just clear out anything that god dirty due to an unpack, we always start clean
 
 			if (subject->IsSelf)
+			{
+				CurrentState = StateEventTypes::ActiveSyncing;
 				StateEvents.Call(StateEventTypes::ActiveSyncing, [](auto func) {func(StateEventTypes::ActiveSyncing); });
+			}
 		}
 
 		void ClientWorld::ProcessSetControllerPropertyData(MessageBufferReader& reader)

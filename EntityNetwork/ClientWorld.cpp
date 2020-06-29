@@ -154,7 +154,10 @@ namespace EntityNetwork
 		void ClientWorld::HandlePropteryDescriptorMessage(MessageBufferReader& reader)
 		{
 			if (EntityControllerProperties.Size() == 0 && WorldProperties.Size() == 0 && RemoteProcedures.Size() == 0) // first data of anything we get is property descriptors
+			{
+				CurrentState = StateEventTypes::Negotiating;
 				StateEvents.Call(StateEventTypes::Negotiating, [](auto func) {func(StateEventTypes::Negotiating); });
+			}
 
 			if (reader.Command == MessageCodes::AddControllerPropertyDef)
 			{

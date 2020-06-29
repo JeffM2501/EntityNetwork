@@ -53,10 +53,16 @@ int main()
 
 	ServerWorld world;
 	world.RegisterControllerProperty("name", PropertyDesc::DataTypes::String, 32);
+
+	EntityDesc eDesc;
+	eDesc.Name = "sample_ent";
+	eDesc.CreateScope = EntityDesc::CreateScopes::ServerSync;
+	eDesc.AddPropertyDesc("value", PropertyDesc::DataTypes::Integer);
+	world.RegisterEntityDesc(eDesc);
 	
 	int propID = world.RegisterWorldPropertyData("WorldProp1", EntityNetwork::PropertyDesc::DataTypes::Integer);
 	world.GetWorldPropertyData(propID)->SetValueI(1);
-	
+
 	// in 5 seconds change the world data property to make sure it gets sent out
 	auto testThread = std::thread([&world, propID]()
 		{
@@ -95,15 +101,6 @@ int main()
 				std::cout << "Server Peer Connected\n";
 				auto peer = world.AddRemoteController(peerID);
 				connectedPeers.push_back(evt.peer);
-
-				// two seconds after they connect, try to trigger the client side RPC
-// 				std::thread([&peer, &world, clientProcID]()
-// 					{
-// 						std::this_thread::sleep_for(std::chrono::seconds(2));
-// 						auto args = world.GetRPCArgs(clientProcID);
-// 						args[0]->SetValueStr("Test Value " + std::to_string(peer->GetID()));
-// 						world.CallRPC(clientProcID, peer, args);
-// 					});
 			}
 			break;
 

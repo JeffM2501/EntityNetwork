@@ -96,6 +96,8 @@ namespace EntityNetwork
 			};
 			EventList<StateEventTypes, std::function<void(StateEventTypes state)>> StateEvents;
 
+			StateEventTypes CurrentState = StateEventTypes::Disconnected;
+
 			enum class EntityEventTypes
 			{
 				EntityAdded,						// An entity instance has been created from the server
