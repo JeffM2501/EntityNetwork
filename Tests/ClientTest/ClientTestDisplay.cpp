@@ -94,7 +94,7 @@ bool InitGraph()
 	if (Renderer == nullptr)
 		return false;
 
-	bg = LoadTexture("backgrounds/blue.png");
+	bg = LoadTexture("backgrounds/tileGrass1.png");
 
 	return true;
 }
