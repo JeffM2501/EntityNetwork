@@ -21,6 +21,7 @@
 //	SOFTWARE.
 #pragma once
 #include <functional>
+#include <string>
 #include <memory>
 #include <mutex>
 
@@ -65,6 +66,7 @@ namespace EntityNetwork
 		inline virtual size_t GetOutboundSize() { return 0; }
 
 		PropertyData::Ptr FindPropertyByID(int id);
+		PropertyData::Ptr FindPropertyByName(const std::string& name);
 
 		std::vector<PropertyData::Ptr> GetDirtyProperties();
 
@@ -72,7 +74,7 @@ namespace EntityNetwork
 
 		friend class World;
 
-		virtual void SetPropertyInfo(MutexedVector<PropertyDesc>& propertyDecriptors);
+		virtual void SetPropertyInfo(MutexedVector<PropertyDesc::Ptr>& propertyDecriptors);
 		virtual void Update() {}
 
 		int64_t ID = 0;

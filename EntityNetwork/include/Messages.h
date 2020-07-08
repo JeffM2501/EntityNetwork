@@ -55,10 +55,27 @@ namespace EntityNetwork
 		// data updates
 		SetControllerPropertyDataValues,
 		SetWorldDataValues,
+		InitalWorldDataComplete,
 		SetEntityDataValues,
 
 		// RPC
 		CallRPC,
+
+		// special
+		NoCode = -126
+	};
+
+	struct StateUpdatePos
+	{
+		uint64_t Step = 0;
+		float Postion[3] = { 0,0,0 };
+	};
+
+	struct StateUpdatePosRot
+	{
+		uint64_t Step;
+		float Postion[3] = { 0,0,0 };
+		float Orientation[4] = { 0,0,0,1 };
 	};
 
 	class MessageBuffer
@@ -112,21 +129,35 @@ namespace EntityNetwork
 
 	public:
 
-		inline MessageBufferBuilder()
+		inline MessageBufferBuilder(bool useCode = true)
 		{
 			Data.reserve(128);
-			Data.push_back(0);
+			if (useCode)
+				Data.push_back(0);
+			else
+				Command = MessageCodes::NoCode;
+		}
+
+		inline MessageBufferBuilder(MessageCodes code)
+		{
+			Data.reserve(128);
+			Command = code;
+			Data.push_back((char)Command);
 		}
 
 		inline bool Empty()
 		{
+			if (Command == MessageCodes::NoCode)
+				return Data.size() > 0;
+
 			return Data.size() <= 1;
 		}
 
 		inline void Clear()
 		{
 			Data = std::vector<char>(128);
-			Data.push_back(0);
+			if (Command != MessageCodes::NoCode)
+				Data.push_back(0);
 		}
 
 		inline void AddInt(int value)
@@ -165,9 +196,20 @@ namespace EntityNetwork
 			Insert(value, size);
 		}
 
+		inline void AddStateUpdatePos(StateUpdatePos& state)
+		{
+			Insert(&state, 8 + (4*3));
+		}
+
+		inline void AddStateUpdatePosRot(StateUpdatePosRot& state)
+		{
+			Insert(&state, 8 + (4 * 7));
+		}
+
 		inline MessageBuffer::Ptr Pack()
 		{
-			Data[0] = (char)Command;
+			if (Command != MessageCodes::NoCode)
+				Data[0] = (char)Command;
 
 			return MessageBuffer::MakeShared(&(Data[0]), Data.size(), false);
 		}
@@ -181,16 +223,18 @@ namespace EntityNetwork
 
 		MessageCodes Command = MessageCodes::NoOp;
 
-		inline void Reset(MessageBuffer::Ptr data)
+		inline void Reset(MessageBuffer::Ptr data, bool useCode = true)
 		{
 			Message = data;
 			ReadOffset = 0;
-			if (data != nullptr && data->MessageLenght > 0)
+			if (useCode && data != nullptr && data->MessageLenght > 0)
 			{
 				ReadOffset = 1;
 				unsigned char p = static_cast<unsigned char*>(data->MessageData)[0];
 				Command = static_cast<MessageCodes>(p);
 			}
+			else
+				Command = MessageCodes::NoCode;
 		}
 
 		inline bool Done()
@@ -225,9 +269,9 @@ namespace EntityNetwork
 
 	public:
 
-		inline MessageBufferReader(MessageBuffer::Ptr data)
+		inline MessageBufferReader(MessageBuffer::Ptr data, bool useCommand = true)
 		{
-			Reset(data);
+			Reset(data, useCommand);
 		}
 
 		inline int ReadInt()
@@ -301,6 +345,22 @@ namespace EntityNetwork
 			memcpy(destinationBuffer, p, buffLen);
 
 			return true;
+		}
+
+		inline StateUpdatePos ReadStateUpdatePos()
+		{
+			void* p = Read(8);
+			if (p == nullptr)
+				return StateUpdatePos();
+			return *static_cast<StateUpdatePos*>(p);
+		}
+
+		inline StateUpdatePosRot ReadStateUpdatePosRot()
+		{
+			void* p = Read(8);
+			if (p == nullptr)
+				return StateUpdatePosRot();
+			return *static_cast<StateUpdatePosRot*>(p);
 		}
 	};
 }

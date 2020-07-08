@@ -39,9 +39,9 @@ namespace EntityNetwork
 			builder.Command = MessageCodes::SetControllerPropertyDataValues;
 			for (auto prop : Self->GetDirtyProperties())
 			{
-				if (prop->Descriptor.UpdateFromClient())
+				if (prop->Descriptor->UpdateFromClient())
 				{
-					builder.AddInt(prop->Descriptor.ID);
+					builder.AddInt(prop->Descriptor->ID);
 					prop->PackValue(builder);
 				}
 				pendingMods.push_back(builder.Pack());
@@ -89,11 +89,15 @@ namespace EntityNetwork
 					auto prop = WorldProperties.TryGet(reader.ReadByte());
 					if (prop == nullptr)
 						break;
-					(*prop)->UnpackValue(reader, (*prop)->Descriptor.UpdateFromServer());
-					PropertyEvents.Call(PropertyEventTypes::WorldPropertyDataChanged, [&prop](auto func) {func(nullptr, (*prop)->Descriptor.ID); });
+					(*prop)->UnpackValue(reader, (*prop)->Descriptor->UpdateFromServer());
+					PropertyEvents.Call(PropertyEventTypes::WorldPropertyDataChanged, [&prop](auto func) {func(nullptr, (*prop)->Descriptor->ID); });
 
 					(*prop)->SetClean(); // remote properties are never dirty, only locally set ones
 				}
+				break;
+
+			case MessageCodes::InitalWorldDataComplete:
+				PropertyEvents.Call(PropertyEventTypes::InitialWorldPropertyDataComplete, [](auto func) {func(nullptr, -1); });
 				break;
 
 			case MessageCodes::CallRPC:
@@ -161,12 +165,12 @@ namespace EntityNetwork
 
 			if (reader.Command == MessageCodes::AddControllerPropertyDef)
 			{
-				PropertyDesc desc;
-				desc.ID = reader.ReadInt();
-				desc.Name = reader.ReadString();
-				desc.DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
-				desc.Scope = static_cast<PropertyDesc::Scopes>(reader.ReadByte());
-				desc.Private = reader.ReadBool();
+				PropertyDesc::Ptr desc = PropertyDesc::Make();
+				desc->ID = reader.ReadInt();
+				desc->Name = reader.ReadString();
+				desc->DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
+				desc->Scope = static_cast<PropertyDesc::Scopes>(reader.ReadByte());
+				desc->Private = reader.ReadBool();
 
 				RegisterControllerPropertyDesc(desc);
 				if (Self != nullptr)	// if we are connected, fix all the other peers
@@ -174,18 +178,17 @@ namespace EntityNetwork
 					SetupEntityController(static_cast<EntityController&>(*Self));
 					Peers.DoForEach([this](auto id, auto peer) {SetupEntityController(*peer); });
 				}
-				PropertyEvents.Call(PropertyEventTypes::ControllerPropertyDefAdded, [&desc](auto func) {func(nullptr, desc.ID); });
+				PropertyEvents.Call(PropertyEventTypes::ControllerPropertyDefAdded, [&desc](auto func) {func(nullptr, desc->ID); });
 			}
 			else if (reader.Command == MessageCodes::AddWordDataDef)
 			{
-				PropertyDesc desc;
-				desc.ID = reader.ReadInt();
-				desc.Name = reader.ReadString();
-				desc.DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
+				PropertyDesc::Ptr desc = PropertyDesc::Make();
+				desc->ID = reader.ReadInt();
+				desc->Name = reader.ReadString();
+				desc->DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
 
 				RegisterWorldPropertyDesc(desc);
-				
-				PropertyEvents.Call(PropertyEventTypes::WorldPropertyDefAdded, [&desc](auto func) {func(nullptr, desc.ID); });
+				PropertyEvents.Call(PropertyEventTypes::WorldPropertyDefAdded, [&desc](auto func) {func(nullptr, desc->ID); });
 			}
 			else if (reader.Command == MessageCodes::AddRPCDef)
 			{
@@ -218,14 +221,19 @@ namespace EntityNetwork
 				def.CreateScope = static_cast<EntityDesc::CreateScopes>(reader.ReadByte());
 				while (reader.Done())
 				{
-					PropertyDesc prop;
-					prop.ID = reader.ReadInt();
-					prop.Scope = static_cast<PropertyDesc::Scopes>(reader.ReadByte());
-					prop.Name = reader.ReadString();
-					prop.DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
+					PropertyDesc::Ptr prop = PropertyDesc::Make();
+					prop->ID = reader.ReadInt();
+					prop->Scope = static_cast<PropertyDesc::Scopes>(reader.ReadByte());
+					prop->Name = reader.ReadString();
+					prop->DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
 				}
 
 				EntityDefs.Insert(def.ID, def);
+
+				auto itr = PendingEntityFactories.find(def.Name);
+				if (itr != PendingEntityFactories.end())
+					EntityFactories[def.ID] = itr->second;
+
 				PropertyEvents.Call(PropertyEventTypes::EntityDefAdded, [&def](auto func) {func(nullptr, def.ID); });
 			}
 		}

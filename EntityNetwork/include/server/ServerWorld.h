@@ -27,6 +27,7 @@
 #include "MutexedMap.h"
 #include "MutexedVector.h"
 #include "EventList.h"
+#include "RemoteProcedureDescriptor.h"
 #include <functional>
 
 namespace EntityNetwork
@@ -41,7 +42,7 @@ namespace EntityNetwork
 			class ServerRPCDef
 			{
 			public:
-				RemoteProcedureDef RPCDefintion;
+				RemoteProcedureDef::Ptr RPCDefintion;
 				ServerRPCFunction RPCFunction;
 
 				typedef std::shared_ptr<ServerRPCDef> Ptr;
@@ -49,6 +50,7 @@ namespace EntityNetwork
 
 			// called by the system any time it needs to create controller or entity instance objects
 			// derived servers can return derived classes of they want to hang other data off it
+			// for entities it is better to register a factory for a specific type
 			ServerEntityController::CreateFunction CreateController;
 			EntityInstance::CreateFunction CreateEntityInstance;
 
@@ -81,12 +83,12 @@ namespace EntityNetwork
 			virtual int RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize = 0);
 
 			// register a field that will be attached to all controllers (players)
-			virtual int RegisterControllerPropertyDesc(PropertyDesc& desc);
+			virtual int RegisterControllerPropertyDesc(PropertyDesc::Ptr desc);
 
 			// remote procedure calls
 
-			// register a remote procedure call defitnion to send to all clients
-			virtual int RegisterRemoteProcedure(RemoteProcedureDef& desc);
+			// register a remote procedure call definition to send to all clients
+			virtual int RegisterRemoteProcedure(RemoteProcedureDef::Ptr	 desc);
 
 			// associate a local function to a RPC name/ID that will be called when the RPC is triggered by the client.
 			virtual void AssignRemoteProcedureFunction(const std::string& name, ServerRPCFunction function);
@@ -112,9 +114,11 @@ namespace EntityNetwork
 			// All created entities
 			MutexedMap<int64_t, EntityInstance::Ptr> EntityInstances;
 
+			typedef std::function<void(EntityInstance::Ptr)> EntityFunciton;
+
 			// create an entity instance by name/ID for a specific owner. Sync the entity to clients if it is not server local only.
-			virtual int64_t CreateInstance(int entityTypeID, int64_t ownerID);
-			virtual int64_t CreateInstance(const std::string& entityType, int64_t ownerID);
+			virtual int64_t CreateInstance(int entityTypeID, int64_t ownerID, EntityFunciton setupCallback = nullptr);
+			virtual int64_t CreateInstance(const std::string& entityType, int64_t ownerID, EntityFunciton setupCallback = nullptr);
 
 			virtual bool RemoveInstance(int64_t entityID);
 
@@ -136,16 +140,19 @@ namespace EntityNetwork
 			};
 			EventList<EntityEventTypes, std::function<void(EntityInstance::Ptr entity)>> EntityEvents;
 
-		protected:
 			MutexedMap<int64_t, ServerEntityController::Ptr>	RemoteEnitityControllers;	// controllers that are fully synced
 
+			void RegisterEntityFactory(int64_t id, EntityInstance::CreateFunction function);
+			void RegisterEntityFactory(const std::string& name, EntityInstance::CreateFunction function);
+
+		protected:
 			MutexedVector<MessageBuffer::Ptr> ControllerPropertyCache;
 			MutexedVector<MessageBuffer::Ptr> WorldPropertyDefCache;
 			MutexedVector<MessageBuffer::Ptr> RPCDefCache;
 			MutexedVector<MessageBuffer::Ptr> EntityDefCache;
 			MutexedVector<std::shared_ptr<ServerRPCDef>> RemoteProcedures;
 
-			MessageBuffer::Ptr BuildControllerPropertySetupMessage(PropertyDesc& desc);
+			MessageBuffer::Ptr BuildControllerPropertySetupMessage(PropertyDesc::Ptr desc);
 			MessageBuffer::Ptr BuildWorldPropertySetupMessage(int index);
 			MessageBuffer::Ptr BuildRPCSetupMessage(int index);
 			MessageBuffer::Ptr BuildEntityDefMessage(int index);
@@ -165,6 +172,12 @@ namespace EntityNetwork
 			virtual void ProcessClientEntityAdd(ServerEntityController::Ptr peer, MessageBufferReader& reader);
 			virtual void ProcessClientEntityRemove(ServerEntityController::Ptr peer, MessageBufferReader& reader);
 			virtual void ProcessClientEntityUpdate(ServerEntityController::Ptr peer, MessageBufferReader& reader);
+
+		private:
+			std::map<int, EntityInstance::CreateFunction> EntityFactories;
+			std::map<std::string, EntityInstance::CreateFunction> PendingEntityFactories;
+
+			EntityInstance::Ptr NewEntityInstance(const EntityDesc& desc, int64_t id);
 		};
 	}
 }

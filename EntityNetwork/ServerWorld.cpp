@@ -56,10 +56,10 @@ namespace EntityNetwork
 						builder.AddID(peer->GetID());
 						for (auto prop : dirtyProps)
 						{
-							if (prop->Descriptor.Private) // we don't replicate private data
+							if (prop->Descriptor->Private) // we don't replicate private data
 								continue;
 
-							builder.AddInt(prop->Descriptor.ID);
+							builder.AddInt(prop->Descriptor->ID);
 							prop->PackValue(builder);
 						}
 						pendingGlobalUpdates.push_back(builder.Pack());
@@ -112,8 +112,10 @@ namespace EntityNetwork
 				case MessageCodes::AddController:
 				case MessageCodes::AddRPCDef:
 				case MessageCodes::AddEntityDef:
-				case MessageCodes::AddWordDataDef:;
+				case MessageCodes::AddWordDataDef:
+				case MessageCodes::InitalWorldDataComplete:
 				case MessageCodes::NoOp:
+				case MessageCodes::NoCode:
 				default:
 					break;
 				}

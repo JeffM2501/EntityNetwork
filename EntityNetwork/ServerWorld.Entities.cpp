@@ -26,11 +26,40 @@ namespace EntityNetwork
 {
 	namespace Server
 	{
+
+		EntityInstance::Ptr ServerWorld::NewEntityInstance(const EntityDesc& desc, int64_t id)
+		{
+			auto facItr = EntityFactories.find(desc.ID);
+			if (facItr != EntityFactories.end())
+				return facItr->second(desc, id);
+			return CreateEntityInstance(desc, id);
+		}
+
+		void ServerWorld::RegisterEntityFactory(int64_t id, EntityInstance::CreateFunction function)
+		{
+			EntityFactories[id] = function;
+		}
+
+		void ServerWorld::RegisterEntityFactory(const std::string& name, EntityInstance::CreateFunction function)
+		{
+			auto ent = EntityDefs.FindIF([&name](const int& id, EntityDesc& desc) {return desc.Name == name; });
+
+			if (ent != std::nullopt)
+				RegisterEntityFactory(ent->ID, function);
+			else
+				PendingEntityFactories[name] = function;
+		}
+
 		int ServerWorld::RegisterEntityDesc(EntityDesc& desc)
 		{
 			desc.ID = static_cast<int>(EntityDefs.Size());
 			SendToAll(BuildEntityDefMessage(desc.ID));
 			EntityDefs.Insert(desc.ID, desc);
+
+			auto itr = PendingEntityFactories.find(desc.Name);
+			if (itr != PendingEntityFactories.end())
+				EntityFactories[desc.ID] = itr->second;
+
 			return desc.ID;
 		}
 
@@ -48,10 +77,10 @@ namespace EntityNetwork
 			builder.AddByte(static_cast<int>(def->CreateScope));
 			for (auto& prop : def->Properties)
 			{
-				builder.AddInt(prop.ID);
-				builder.AddByte(static_cast<int>(prop.Scope));
-				builder.AddString(prop.Name);
-				builder.AddByte(static_cast<int>(prop.DataType));
+				builder.AddInt(prop->ID);
+				builder.AddByte(static_cast<int>(prop->Scope));
+				builder.AddString(prop->Name);
+				builder.AddByte(static_cast<int>(prop->DataType));
 			}
 
 			auto msg = builder.Pack();
@@ -60,27 +89,30 @@ namespace EntityNetwork
 			return msg;
 		}
 
-		int64_t ServerWorld::CreateInstance(int entityTypeID, int64_t ownerID)
+		int64_t ServerWorld::CreateInstance(int entityTypeID, int64_t ownerID, EntityFunciton setupCallback)
 		{
 			auto entDef = EntityDefs.Find(entityTypeID);
 			if (entDef == std::nullopt || !entDef->AllowServerCreate()) // invalid or client only create
 				return EntityInstance::InvalidID;
 
-			EntityInstance::Ptr ent = CreateEntityInstance(*entDef, EntityInstances.Size());
+			EntityInstance::Ptr ent = NewEntityInstance(*entDef, EntityInstances.Size());
 			ent->OwnerID = ownerID;
 			EntityInstances.Insert(ent->ID, ent);
+
+			if (setupCallback != nullptr)
+				setupCallback(ent);
 
 			EntityEvents.Call(EntityEventTypes::EntityAdded, [&ent](auto func) {func(ent); });
 			return ent->ID;
 		}
 
-		int64_t ServerWorld::CreateInstance(const std::string& entityType, int64_t ownerID)
+		int64_t ServerWorld::CreateInstance(const std::string& entityType, int64_t ownerID, EntityFunciton setupCallback)
 		{
 			auto ent = EntityDefs.FindIF([&entityType](const int& id, EntityDesc& desc) {return desc.Name == entityType; });
 			if (ent == std::nullopt)
 				return EntityInstance::InvalidID;
 
-			return CreateInstance(ent->ID, ownerID);
+			return CreateInstance(ent->ID, ownerID, setupCallback);
 		}
 
 		bool ServerWorld::RemoveInstance(int64_t entityID)
@@ -121,7 +153,7 @@ namespace EntityNetwork
 				return;
 			}
 
-			EntityInstance::Ptr ent = CreateEntityInstance(*entDef, EntityInstances.Size());
+			EntityInstance::Ptr ent = NewEntityInstance(*entDef, EntityInstances.Size());
 			ent->OwnerID = peer->ID;
 
 			int index = 0;
@@ -144,6 +176,13 @@ namespace EntityNetwork
 			ackMsg.AddID(localID);
 			Send(peer, ackMsg);
 			EntityEvents.Call(EntityEventTypes::EntityAccepted, [&ent](auto func) {func(ent); });
+
+			// they aways know about this revision, they added the thing. This prevents us from sending the item back to them as an add. The accept message handles that for this client.
+			KnownEnityDataset& dataset = peer->KnownEnitities.Insert(ent->ID, KnownEnityDataset());
+			ent->Properties.DoForEach([&dataset](PropertyData::Ptr prop)
+				{
+					dataset.DataRevisions.push_back(prop->GetRevision());
+				});
 		}
 
 		void ServerWorld::ProcessClientEntityRemove(ServerEntityController::Ptr peer, MessageBufferReader& reader)
@@ -177,7 +216,7 @@ namespace EntityNetwork
 				auto prop = (*ent)->Properties.TryGet(propID);
 				if (prop != nullptr)
 				{
-					(*prop)->UnpackValue(reader, (*prop)->Descriptor.UpdateFromClient());
+					(*prop)->UnpackValue(reader, (*prop)->Descriptor->UpdateFromClient());
 				}
 			}
 			EntityEvents.Call(EntityEventTypes::EntityUpdated, [&ent](auto func) {func(*ent); });
@@ -207,7 +246,8 @@ namespace EntityNetwork
 								entity->Properties.DoForEach([&addMsg, &dataset](PropertyData::Ptr prop) 
 									{
 										// always pack all values when the server sends an entity
-										prop->PackValue(addMsg); dataset.DataRevisions.push_back(prop->GetRevision());
+										prop->PackValue(addMsg);
+										dataset.DataRevisions.push_back(prop->GetRevision());
 									});
 								Send(peer, addMsg);
 							}
@@ -216,10 +256,15 @@ namespace EntityNetwork
 								std::vector<PropertyData::Ptr> dirtyProps;
 								int index = 0;
 								// check all the properties find ones that have not been sent to the controller
-								entity->Properties.DoForEach([&knownEnt, &dirtyProps, &index](PropertyData::Ptr prop)
+								entity->Properties.DoForEach([&knownEnt, &dirtyProps, &index,&peer,&entity](PropertyData::Ptr prop)
 									{
 										auto rev = prop->GetRevision();
-										if (rev != knownEnt->DataRevisions[index] && prop->Descriptor.TransmitDef()) // different and we sync it
+
+										bool transmit = prop->Descriptor->TransmitDef();
+										if (transmit && prop->Descriptor->Scope == PropertyDesc::Scopes::ClientPushSync)
+											transmit = entity->OwnerID == peer->GetID(); // dont send them back updates for a value they pushed to us
+											
+										if (rev != knownEnt->DataRevisions[index] && transmit) // different and we sync it
 											dirtyProps.push_back(prop);
 										knownEnt->DataRevisions[index] = rev;
 									});

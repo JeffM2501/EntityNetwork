@@ -41,6 +41,7 @@ namespace EntityNetwork
 			MutexedMap<int64_t, KnownEnityDataset> KnownEnitities;
 
 			ServerEntityController(int64_t id) : EntityController(id) {}
+			virtual ~ServerEntityController() {}
 
 			inline virtual void AddInbound(MessageBuffer::Ptr message)
 			{

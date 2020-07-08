@@ -34,6 +34,7 @@ namespace EntityNetwork
 		{
 		public:
 			ClientEntityController(int64_t id) : EntityController(id) {}
+			virtual ~ClientEntityController() {}
 
 			inline virtual void AddInbound(MessageBuffer::Ptr message)
 			{

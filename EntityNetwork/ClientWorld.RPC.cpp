@@ -36,7 +36,7 @@ namespace EntityNetwork
 			procDef->RPCFunction(arguments);
 		}
 
-		bool ClientWorld::CallRPC(const std::string& name, std::vector<PropertyData::Ptr>& args)
+		bool ClientWorld::CallRPC(const std::string& name, const std::vector<PropertyData::Ptr>& args)
 		{
 			auto procPtr = GetRPCDef(name);
 			if (procPtr == nullptr)
@@ -45,7 +45,7 @@ namespace EntityNetwork
 			return CallRPC(procPtr->RPCDefintion.ID, args);
 		}
 
-		bool ClientWorld::CallRPC(int index, std::vector<PropertyData::Ptr>& args)
+		bool ClientWorld::CallRPC(int index, const std::vector<PropertyData::Ptr>& args)
 		{
 			auto procPtr = GetRPCDef(index);
 

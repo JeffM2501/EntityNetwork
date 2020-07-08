@@ -35,10 +35,10 @@ namespace EntityNetwork
 			if (Self != nullptr && id == Self->GetID())
 				subject = Self;
 			else
-			{
 				subject = CreateController(id, false);
-				Peers.Insert(id, subject);
-			}
+
+			Peers.Insert(id, subject);
+
 			SetupEntityController(static_cast<EntityController&>(*subject));
 
 			while (!reader.Done())
@@ -67,10 +67,10 @@ namespace EntityNetwork
 				while (!reader.Done())
 				{
 					auto prop = subject->FindPropertyByID(reader.ReadByte());
-					prop->UnpackValue(reader, prop->Descriptor.UpdateFromServer());
+					prop->UnpackValue(reader, prop->Descriptor->UpdateFromServer());
 
-					if (prop->Descriptor.UpdateFromServer())
-						PropertyEvents.Call(subject->IsSelf ? PropertyEventTypes::SelfPropteryChanged : PropertyEventTypes::RemoteControllerPropertyChanged, [&subject, &prop](auto func) {func(subject, prop->Descriptor.ID); });
+					if (prop->Descriptor->UpdateFromServer())
+						PropertyEvents.Call(subject->IsSelf ? PropertyEventTypes::SelfPropteryChanged : PropertyEventTypes::RemoteControllerPropertyChanged, [&subject, &prop](auto func) {func(subject, prop->Descriptor->ID); });
 
 					prop->SetClean(); // remote properties are never dirty, only locally set ones
 				}

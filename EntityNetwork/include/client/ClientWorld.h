@@ -83,6 +83,7 @@ namespace EntityNetwork
 				ControllerPropertyDefAdded,			// a new property type for controllers has been registered
 				WorldPropertyDefAdded,				// a new property type for the world has been registered
 				WorldPropertyDataChanged,			// data for a world property has changed
+				InitialWorldPropertyDataComplete,	// the initial world data is complete
 				RPCRegistered,						// a new Remote Procedure Call has been registered
 				EntityDefAdded,						// a new entity type definition has been registered
 			};
@@ -122,8 +123,8 @@ namespace EntityNetwork
 			std::vector<PropertyData::Ptr> GetRPCArgs(const std::string& name);
 
 			// Call a RPC on the server using the specified arguments
-			virtual bool CallRPC(int index, std::vector<PropertyData::Ptr>& args);
-			virtual bool CallRPC(const std::string& name, std::vector<PropertyData::Ptr>& args);
+			virtual bool CallRPC(int index, const std::vector<PropertyData::Ptr>& args);
+			virtual bool CallRPC(const std::string& name, const std::vector<PropertyData::Ptr>& args);
 
 			// Create an entity instance and sync it with the server (if the definition allows it), returns local instance ID (<0), for synced entities the server will change the ID to a global ID with the accept event (ID >=0)
 			virtual int64_t CreateInstance(int entityTypeID);
@@ -135,11 +136,14 @@ namespace EntityNetwork
 			// entities
 			MutexedMap<int64_t, EntityInstance::Ptr> EntityInstances;
 
-		protected:
 			// known peer controllers
 			MutexedMap<int64_t, ClientEntityController::Ptr>	Peers;	// controllers that are fully synced
 			ClientEntityController::Ptr Self; // me
 
+			void RegisterEntityFactory(int64_t id, EntityInstance::CreateFunction function);
+			void RegisterEntityFactory(const std::string& name, EntityInstance::CreateFunction function);
+
+		protected:
 			void Send(MessageBuffer::Ptr message);
 
 			ClientEntityController::Ptr PeerFromID(int64_t id);
@@ -166,6 +170,11 @@ namespace EntityNetwork
 			int64_t LastLocalID = 0;
 			std::vector<EntityInstance::Ptr>	NewLocalEntities;
 			std::vector<int64_t>				DeadLocalEntities;
-		};
+
+			std::map<int, EntityInstance::CreateFunction> EntityFactories;
+			std::map<std::string, EntityInstance::CreateFunction> PendingEntityFactories;
+
+			EntityInstance::Ptr NewEntityInstance(const EntityDesc& desc, int64_t id);
+	};
 	}
 }

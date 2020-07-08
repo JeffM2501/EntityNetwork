@@ -24,6 +24,8 @@
 #include <thread>
 #include <string>
 #include <regex>
+#include <mutex>
+#include <thread>
 
 #include "ClientTest.h"
 
@@ -90,7 +92,16 @@ std::string getResourcePath(const std::string& subDir)
 	return subDir.empty() ? baseRes : baseRes + osPath;
 }
 
-bool InitNetworking()
+std::thread ConnectThread;
+std::mutex ConnectMutex;
+bool IsConnected = false;
+
+bool NetConnected()
+{
+	return IsConnected;
+}
+
+void InitNetworking()
 {
 	enet_initialize();
 
@@ -98,11 +109,11 @@ bool InitNetworking()
 	enet_address_set_host(&address, "127.0.0.1");
 	address.port = DefaultHost;
 
+	NetClient = nullptr;
+	IsConnected = false;
 	RemoteHost = enet_host_create(nullptr, 1, 3, 0, 0);
 	if (RemoteHost != nullptr)
 		NetClient = enet_host_connect(RemoteHost, &address, 3, 0);
-
-	return NetClient != nullptr;
 }
 
 int serverRPCID = -1;
@@ -112,12 +123,7 @@ void InitEntNet()
 	WorldData.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::SelfCreated, [](ClientEntityController::Ptr client)
 		{
 			std::cout << " Client Self Created " << client->GetID() << "\n";
-			if (serverRPCID != -1)
-			{
-				auto args = WorldData.GetRPCArgs(serverRPCID);
-				args[0]->SetValueI(1234);
-				WorldData.CallRPC(serverRPCID, args);
-			}
+			WorldData.CallRPC("RequestSpawn", PropertyData::EmptyArgs);
 
 		});
 	WorldData.ControllerEvents.Subscribe(ClientWorld::ControllerEventTypes::RemoteCreated, [](ClientEntityController::Ptr client) {std::cout << "\tRemote Created " << client->GetID() << "\n"; });
@@ -129,24 +135,16 @@ void InitEntNet()
 	WorldData.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::WorldPropertyDefAdded, [](ClientEntityController::Ptr client, int index) {std::cout << "\tWorld Property def added " << index << "\n"; });
 	WorldData.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::WorldPropertyDataChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "\tWorld Property data changed " << index << "\n"; });
 
+	WorldData.RegisterEntityFactory("PlayerTank", EntityInstance::Create<PlayerTank>);
 
-	WorldData.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::RPCRegistered, [](ClientEntityController::Ptr, int index)
-		{
-			auto proc = WorldData.GetRPCDef(index);
-			if (proc->RPCDefintion.Name == "serverSideRPC1")
-				serverRPCID = index;
-			std::cout << " Server Registered RPC " << index << " " << proc->RPCDefintion.Name << "\n";
-		});
-
-	WorldData.AssignRemoteProcedureFunction("clientRPC1", [](const std::vector<PropertyData::Ptr>& args)
-		{
-			std::cout << " Server " << " triggered client rpc1 with data " << args[0]->GetValueStr() << "\n";
-		});
-
+	WorldData.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::InitialWorldPropertyDataComplete, LoadWorld);
 }
 
 void Cleanup()
 {
+	if (ConnectThread.joinable())
+		ConnectThread.join();
+
 	if (Renderer != nullptr)
 	{
 		SDL_DestroyRenderer(Renderer);
@@ -159,16 +157,19 @@ void Cleanup()
 		Window = nullptr;
 	}
 
-	if (NetClient != nullptr)
+	if (NetConnected())
 	{
-		enet_peer_disconnect_now(NetClient, -1);
-		NetClient = nullptr;
-	}
+		if (NetClient != nullptr)
+		{
+			enet_peer_disconnect_now(NetClient, -1);
+			NetClient = nullptr;
+		}
 
-	if (RemoteHost != nullptr)
-	{
-		enet_host_destroy(RemoteHost);
-		RemoteHost = nullptr;
+		if (RemoteHost != nullptr)
+		{
+			enet_host_destroy(RemoteHost);
+			RemoteHost = nullptr;
+		}
 	}
 
 	SDL_Quit();
@@ -186,6 +187,7 @@ void UpdateEntNet()
 		case ENetEventType::ENET_EVENT_TYPE_CONNECT:
 		{
 			std::cout << "Client Connected\n";
+			IsConnected = true;
 		}
 		break;
 
@@ -225,7 +227,6 @@ void UpdateEntNet()
 	}
 }
 
-
 void UpdateSDL()
 {
 	SDL_Event sdlEvent;
@@ -263,11 +264,12 @@ int main(int argc, char**argv)
 {
 	std::cout << "Client Startup\n";
 
-	if (!InitGraph() || !InitNetworking())
+	if (!InitGraph())
 	{
 		Cleanup();
 		return -1;
 	}
+	InitNetworking();
 	InitEntNet();
 
 	while (!Quit)
@@ -275,6 +277,7 @@ int main(int argc, char**argv)
 		UpdateEntNet();
 		UpdateSDL();
 	}
+	Cleanup();
 	return 0;
 }
 

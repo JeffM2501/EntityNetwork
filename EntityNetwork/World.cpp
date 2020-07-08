@@ -24,25 +24,25 @@
 
 namespace EntityNetwork
 {
-	int World::RegisterControllerPropertyDesc(PropertyDesc& desc)
+	int World::RegisterControllerPropertyDesc(PropertyDesc::Ptr desc)
 	{
-		if (desc.ID < 0)
-			desc.ID = (int)EntityControllerProperties.Size();
+		if (desc->ID < 0)
+			desc->ID = (int)EntityControllerProperties.Size();
 		EntityControllerProperties.PushBack(desc);
-		SetupControllerProperty(desc.ID);
+		SetupControllerProperty(desc->ID);
 
-		return desc.ID;
+		return desc->ID;
 	}
 
 	int World::RegisterControllerProperty(const std::string& name, PropertyDesc::DataTypes dataType, size_t bufferSize, PropertyDesc::Scopes scope, bool isPrivate)
 	{
-		PropertyDesc desc;
-		desc.Name = name;
-		desc.DataType = dataType;
-		desc.BufferSize = bufferSize;
-		desc.Scope = scope;
-		desc.Private = isPrivate;
-		desc.ID = (int)EntityControllerProperties.Size();
+		PropertyDesc::Ptr desc = PropertyDesc::Make();
+		desc->Name = name;
+		desc->DataType = dataType;
+		desc->BufferSize = bufferSize;
+		desc->Scope = scope;
+		desc->Private = isPrivate;
+		desc->ID = (int)EntityControllerProperties.Size();
 		return RegisterControllerPropertyDesc(desc);
 	}
 
@@ -67,26 +67,26 @@ namespace EntityNetwork
 
 	int World::RegisterWorldPropertyData(const std::string& name, PropertyDesc::DataTypes dataType, size_t bufferSize)
 	{
-		PropertyDesc desc;
-		desc.Name = name;
-		desc.DataType = dataType;
-		desc.BufferSize = bufferSize;
-		desc.Scope = PropertyDesc::Scopes::ServerPushSync;
-		desc.Private = true;
-		desc.ID = (int)WorldPropertyDefs.Size();
+		PropertyDesc::Ptr desc = PropertyDesc::Make();
+		desc->Name = name;
+		desc->DataType = dataType;
+		desc->BufferSize = bufferSize;
+		desc->Scope = PropertyDesc::Scopes::ServerPushSync;
+		desc->Private = true;
+		desc->ID = (int)WorldPropertyDefs.Size();
 		WorldPropertyDefs.PushBack(desc);
-		WorldProperties.PushBack(PropertyData::MakeShared(WorldPropertyDefs[desc.ID]));
-		return desc.ID;
+		WorldProperties.PushBack(PropertyData::MakeShared(desc));
+		return desc->ID;
 	}
 
-	int World::RegisterWorldPropertyDesc(PropertyDesc& desc)
+	int World::RegisterWorldPropertyDesc(PropertyDesc::Ptr desc)
 	{
-		if (desc.ID < 0)
-			desc.ID = (int)WorldProperties.Size();
+		if (desc->ID < 0)
+			desc->ID = (int)WorldProperties.Size();
 
 		WorldPropertyDefs.PushBack(desc);
 		WorldProperties.PushBack(PropertyData::MakeShared(WorldPropertyDefs[WorldPropertyDefs.Size()-1]));
-		return desc.ID;
+		return desc->ID;
 	}
 
 	PropertyData::Ptr  World::GetWorldPropertyData(int id)
@@ -99,7 +99,7 @@ namespace EntityNetwork
 
 	PropertyData::Ptr  World::GetWorldPropertyData(const std::string& name)
 	{
-		auto match = WorldProperties.FindFirstMatch([name](PropertyData::Ptr prop) {return prop->Descriptor.Name == name; });
+		auto match = WorldProperties.FindFirstMatch([name](PropertyData::Ptr prop) {return prop->Descriptor->Name == name; });
 		if (match == std::nullopt)
 			return nullptr;
 

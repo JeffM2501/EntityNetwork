@@ -26,14 +26,14 @@ namespace EntityNetwork
 {
 	namespace Server
 	{
-		int ServerWorld::RegisterRemoteProcedure(RemoteProcedureDef& desc)
+		int ServerWorld::RegisterRemoteProcedure(RemoteProcedureDef::Ptr desc)
 		{
-			desc.ID = static_cast<int>(RemoteProcedures.Size());
+			desc->ID = static_cast<int>(RemoteProcedures.Size());
 			auto ptr = std::make_shared<ServerRPCDef>();
 			ptr->RPCDefintion = desc;
 			RemoteProcedures.PushBack(ptr);
-			SendToAll(BuildRPCSetupMessage(desc.ID));
-			return desc.ID;
+			SendToAll(BuildRPCSetupMessage(desc->ID));
+			return desc->ID;
 		}
 
 		void ServerWorld::AssignRemoteProcedureFunction(const std::string& name, ServerRPCFunction function)
@@ -65,7 +65,7 @@ namespace EntityNetwork
 
 		ServerWorld::ServerRPCDef::Ptr ServerWorld::GetRPCDef(const std::string& name)
 		{
-			auto procDef = RemoteProcedures.FindFirstMatch([name](ServerRPCDef::Ptr p) {return p->RPCDefintion.Name == name; });
+			auto procDef = RemoteProcedures.FindFirstMatch([name](ServerRPCDef::Ptr p) {return p->RPCDefintion->Name == name; });
 			if (procDef == std::nullopt)
 				return nullptr;
 
@@ -80,7 +80,7 @@ namespace EntityNetwork
 			if (procDef == nullptr)
 				return args;
 
-			for (auto& argDef : procDef->RPCDefintion.ArgumentDefs)
+			for (auto& argDef : procDef->RPCDefintion->ArgumentDefs)
 				args.push_back(PropertyData::MakeShared(argDef));
 
 			return args;
@@ -92,7 +92,7 @@ namespace EntityNetwork
 			if (procDef == nullptr)
 				return std::vector<PropertyData::Ptr>();
 
-			return GetRPCArgs(procDef->RPCDefintion.ID);
+			return GetRPCArgs(procDef->RPCDefintion->ID);
 		}
 
 		void ServerWorld::ProcessRPCall(ServerEntityController::Ptr peer, MessageBufferReader& reader)
@@ -100,7 +100,7 @@ namespace EntityNetwork
 			int id = reader.ReadInt();
 			auto rpc = GetRPCDef(id);
 
-			if (rpc == nullptr || rpc->RPCFunction == nullptr || rpc->RPCDefintion.Scope != RemoteProcedureDef::Scopes::ClientToServer)
+			if (rpc == nullptr || rpc->RPCFunction == nullptr || rpc->RPCDefintion->Scope != RemoteProcedureDef::Scopes::ClientToServer)
 				return;
 
 			std::vector<PropertyData::Ptr> args = GetRPCArgs(id);
@@ -122,7 +122,7 @@ namespace EntityNetwork
 		void ServerWorld::ExecuteRemoteProcedureFunction(int index, ServerEntityController::Ptr sender, std::vector<PropertyData::Ptr>& arguments)
 		{
 			auto procDef = GetRPCDef(index);
-			if (procDef == nullptr || procDef->RPCFunction == nullptr || procDef->RPCDefintion.Scope != RemoteProcedureDef::Scopes::ClientToServer)
+			if (procDef == nullptr || procDef->RPCFunction == nullptr || procDef->RPCDefintion->Scope != RemoteProcedureDef::Scopes::ClientToServer)
 				return;
 
 			procDef->RPCFunction(sender, arguments);
@@ -137,10 +137,10 @@ namespace EntityNetwork
 			MessageBufferBuilder builder;
 			builder.Command = MessageCodes::AddRPCDef;
 			builder.AddInt(index);
-			builder.AddString(data->RPCDefintion.Name);
-			builder.AddByte(static_cast<int>(data->RPCDefintion.Scope));
-			for (auto arg : data->RPCDefintion.ArgumentDefs)
-				builder.AddByte(static_cast<int>(arg.DataType));
+			builder.AddString(data->RPCDefintion->Name);
+			builder.AddByte(static_cast<int>(data->RPCDefintion->Scope));
+			for (auto arg : data->RPCDefintion->ArgumentDefs)
+				builder.AddByte(static_cast<int>(arg->DataType));
 
 			auto msg = builder.Pack();
 			RPCDefCache.PushBack(msg);
@@ -152,7 +152,7 @@ namespace EntityNetwork
 		{
 			auto procPtr = GetRPCDef(index);
 
-			if (procPtr == nullptr || procPtr->RPCDefintion.Scope == RemoteProcedureDef::Scopes::ClientToServer)
+			if (procPtr == nullptr || procPtr->RPCDefintion->Scope == RemoteProcedureDef::Scopes::ClientToServer)
 				return false;
 
 			MessageBufferBuilder builder;
@@ -161,7 +161,7 @@ namespace EntityNetwork
 			for (PropertyData::Ptr arg : args)
 				arg->PackValue(builder);
 
-			if (procPtr->RPCDefintion.Scope == RemoteProcedureDef::Scopes::ServerToSingleClient)
+			if (procPtr->RPCDefintion->Scope == RemoteProcedureDef::Scopes::ServerToSingleClient)
 				Send(target, builder.Pack());
 			else
 				SendToAll(builder.Pack());
@@ -175,7 +175,7 @@ namespace EntityNetwork
 			if (procPtr == nullptr)
 				return false;
 
-			return CallRPC(procPtr->RPCDefintion.ID, target, args);
+			return CallRPC(procPtr->RPCDefintion->ID, target, args);
 		}
 	}
 }

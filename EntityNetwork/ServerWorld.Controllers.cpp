@@ -26,13 +26,13 @@ namespace EntityNetwork
 {
 	namespace Server
 	{
-		int ServerWorld::RegisterControllerPropertyDesc(PropertyDesc& desc)
+		int ServerWorld::RegisterControllerPropertyDesc(PropertyDesc::Ptr desc)
 		{
 			World::RegisterControllerPropertyDesc(desc);
 
 			SendToAll(BuildControllerPropertySetupMessage(desc));
 
-			return desc.ID;
+			return desc->ID;
 		}
 
 		ServerEntityController::Ptr ServerWorld::AddRemoteController(int64_t id)
@@ -69,6 +69,8 @@ namespace EntityNetwork
 			if (!worldDataUpdates.Empty())
 				Send(ctl, worldDataUpdates);
 
+			Send(ctl, MessageBufferBuilder(MessageCodes::InitalWorldDataComplete).Pack());
+
 			// entity data
 			Send(ctl, EntityDefCache);
 
@@ -93,7 +95,7 @@ namespace EntityNetwork
 			// everyone wants to know new peer's property data
 			ctl->Properties.DoForEach([&builder](auto& prop)
 				{
-					if (prop->Descriptor.TransmitDef())
+					if (prop->Descriptor->TransmitDef())
 						prop->PackValue(builder);
 				});
 
@@ -111,7 +113,7 @@ namespace EntityNetwork
 
 						peer->Properties.DoForEach([&builder](auto& prop)
 							{
-								if (prop->Descriptor.TransmitDef())
+								if (prop->Descriptor->TransmitDef())
 									prop->PackValue(builder);
 							});
 						Send(ctl, builder);
@@ -140,18 +142,18 @@ namespace EntityNetwork
 			SendToAll(builder.Pack());
 		}
 
-		MessageBuffer::Ptr ServerWorld::BuildControllerPropertySetupMessage(PropertyDesc& desc)
+		MessageBuffer::Ptr ServerWorld::BuildControllerPropertySetupMessage(PropertyDesc::Ptr desc)
 		{
-			if (!desc.TransmitDef())
+			if (desc == nullptr || !desc->TransmitDef())
 				return nullptr;
 
 			MessageBufferBuilder builder;
 			builder.Command = MessageCodes::AddControllerPropertyDef;
-			builder.AddInt(desc.ID);
-			builder.AddString(desc.Name);
-			builder.AddByte(static_cast<int>(desc.DataType));
-			builder.AddByte(static_cast<int>(desc.Scope));
-			builder.AddBool(desc.Private);
+			builder.AddInt(desc->ID);
+			builder.AddString(desc->Name);
+			builder.AddByte(static_cast<int>(desc->DataType));
+			builder.AddByte(static_cast<int>(desc->Scope));
+			builder.AddBool(desc->Private);
 			auto msg = builder.Pack();
 			ControllerPropertyCache.PushBack(msg);
 
@@ -167,7 +169,7 @@ namespace EntityNetwork
 				if (prop == nullptr)
 					reader.End();
 				else
-					prop->UnpackValue(reader, prop->Descriptor.UpdateFromClient());
+					prop->UnpackValue(reader, prop->Descriptor->UpdateFromClient());
 			}
 		}
 	}

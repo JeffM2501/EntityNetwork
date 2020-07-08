@@ -48,7 +48,7 @@ namespace EntityNetwork
 		};
 		CreateScopes CreateScope = CreateScopes::ServerSync;
 
-		std::vector<PropertyDesc> Properties;
+		std::vector<PropertyDesc::Ptr> Properties;
 
 		inline bool AllowServerCreate() const
 		{
@@ -65,20 +65,20 @@ namespace EntityNetwork
 			return CreateScope == CreateScopes::ServerSync || CreateScope == CreateScopes::ClientSync;
 		}
 
-		inline int AddPropertyDesc(PropertyDesc& desc)
+		inline int AddPropertyDesc(PropertyDesc::Ptr desc)
 		{
-			desc.ID = static_cast<int>(Properties.size());
+			desc->ID = static_cast<int>(Properties.size());
 			Properties.push_back(desc);
-			return desc.ID;
+			return desc->ID;
 		}
 
 		inline int AddPropertyDesc(const std::string& name, PropertyDesc::DataTypes dataType, size_t dataSize = 0)
 		{
-			PropertyDesc desc;
-			desc.Name = name;
-			desc.DataType = dataType;
-			desc.Scope = PropertyDesc::Scopes::BidirectionalSync;
-			desc.BufferSize = dataSize;
+			PropertyDesc::Ptr desc = PropertyDesc::Make();
+			desc->Name = name;
+			desc->DataType = dataType;
+			desc->Scope = PropertyDesc::Scopes::BidirectionalSync;
+			desc->BufferSize = dataSize;
 			return AddPropertyDesc(desc);
 		}
 

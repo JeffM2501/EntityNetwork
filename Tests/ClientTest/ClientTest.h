@@ -10,7 +10,7 @@ using namespace EntityNetwork::Client;
 extern SDL_Window* Window ;
 extern SDL_Rect	WindowRect;
 extern SDL_Renderer* Renderer;
-extern SDL_Texture* bg;
+extern SDL_Texture* BackgroundTexture;
 
 extern ClientWorld WorldData;
 
@@ -68,11 +68,32 @@ extern FPSTimer EnityUpdateTimer;
 void LogSDLError(const std::string& msg);
 std::string getResourcePath(const std::string& subDir = "");
 
+// network status
+bool NetConnected();
+
+// events
+void LoadWorld(ClientEntityController::Ptr, int);
+
 // display
 SDL_Texture* LoadTexture(const std::string& file, SDL_Renderer* ren = nullptr);
 void BlitTexture(SDL_Texture* tex, int x, int y, SDL_Renderer* ren = nullptr);
 void BlitTexture(SDL_Texture* tex, int x, int y, int w, int h, SDL_Renderer* ren = nullptr);
 void BlitTexture(SDL_Texture* tex, SDL_Rect& dest, SDL_Renderer* ren = nullptr);
+void BlitTextureCenter(SDL_Texture* tex, SDL_Point& pos, SDL_Renderer* ren = nullptr);
+void BlitTextureCenter(SDL_Texture* tex, SDL_Point& pos, float angle, SDL_Renderer* ren = nullptr);
 bool InitGraph();
 
 void RenderGraph();
+
+void HandleEntityAdd(EntityInstance::Ptr entity);
+
+class PlayerTank : public EntityInstance
+{
+public:
+	PlayerTank(const EntityDesc& desc) : EntityInstance(desc), AvatarPicture(nullptr){};
+
+	SDL_Texture* AvatarPicture = nullptr;
+	SDL_Point DrawPoint;
+
+	typedef std::shared_ptr<PlayerTank> Ptr;
+};

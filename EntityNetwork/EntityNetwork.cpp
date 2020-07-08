@@ -28,8 +28,9 @@
 #endif
 
 #include "EntityNetwork.h"
+#include "PropertyData.h"
 
-// TODO: This is an example of a library function
-void fnEntityNetwork()
+namespace EntityNetwork
 {
+	const std::vector<PropertyData::Ptr> PropertyData::EmptyArgs;
 }

@@ -43,8 +43,8 @@ namespace EntityNetwork
 			MessageBufferBuilder builder;
 			builder.Command = MessageCodes::AddWordDataDef;
 			builder.AddInt(index);
-			builder.AddString(data->Descriptor.Name);
-			builder.AddByte(static_cast<int>(data->Descriptor.DataType));
+			builder.AddString(data->Descriptor->Name);
+			builder.AddByte(static_cast<int>(data->Descriptor->DataType));
 			auto msg = builder.Pack();
 			WorldPropertyDefCache.PushBack(msg);
 
@@ -61,6 +61,5 @@ namespace EntityNetwork
 			auto msg = builder.Pack();
 			return msg;
 		}
-
 	}
 }

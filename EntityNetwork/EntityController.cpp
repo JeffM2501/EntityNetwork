@@ -31,18 +31,27 @@ namespace EntityNetwork
 {
 	PropertyData::Ptr EntityController::FindPropertyByID(int id)
 	{
-		auto prop = Properties.FindFirstMatch([id](PropertyData::Ptr p) {return p->Descriptor.ID == id; });
+		auto prop = Properties.FindFirstMatch([id](PropertyData::Ptr p) {return p->Descriptor->ID == id; });
 		if (prop != std::nullopt)
 			return *prop;
 		
 		return nullptr;
 	}
 
-	void EntityController::SetPropertyInfo(MutexedVector<PropertyDesc>& propertyDecriptors)
+	PropertyData::Ptr EntityController::FindPropertyByName(const std::string& name)
+	{
+		auto prop = Properties.FindFirstMatch([&name](PropertyData::Ptr p) {return p->Descriptor->Name == name; });
+		if (prop != std::nullopt)
+			return *prop;
+
+		return nullptr;
+	}
+
+	void EntityController::SetPropertyInfo(MutexedVector<PropertyDesc::Ptr>& propertyDecriptors)
 	{
 		std::vector<PropertyData::Ptr> newProps;
 
-		propertyDecriptors.DoForEach([this, &newProps](auto& desc)
+		propertyDecriptors.DoForEach([this, &newProps](PropertyDesc::Ptr& desc)
 			{
 				auto existing = Properties.FindFirstMatch([desc](PropertyData::Ptr otherPtr) {return desc == otherPtr->Descriptor; });
 

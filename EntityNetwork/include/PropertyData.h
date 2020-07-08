@@ -53,7 +53,9 @@ namespace EntityNetwork
 		typedef std::vector<PropertyData> Vec;
 		typedef std::shared_ptr<PropertyData> Ptr;
 
-		const PropertyDesc& Descriptor;
+		static const std::vector<Ptr> EmptyArgs;
+
+		PropertyDesc::Ptr	 Descriptor;
 
 		void*	DataPtr = nullptr;
 		size_t DataLenght = 0;
@@ -76,10 +78,13 @@ namespace EntityNetwork
 			Dirty = false;
 		}
 
-		PropertyData(const PropertyDesc& desc) : Descriptor(desc)
+		PropertyData(PropertyDesc::Ptr desc) : Descriptor(desc)
 		{
 			DataLenght = 0;
-			switch (desc.DataType)
+			if (desc == nullptr)
+				return;
+
+			switch (desc->DataType)
 			{
 			case PropertyDesc::DataTypes::Integer:
 			case PropertyDesc::DataTypes::Float:
@@ -109,18 +114,27 @@ namespace EntityNetwork
 				break;
 
 			case PropertyDesc::DataTypes::String:
-				DataLenght = desc.BufferSize == 0 ? 64 : desc.BufferSize;
+				DataLenght = desc->BufferSize == 0 ? 64 : desc->BufferSize;
 				break;
 
 			case PropertyDesc::DataTypes::Buffer:
-				DataLenght = desc.BufferSize;
+				DataLenght = desc->BufferSize;
 				break;
+
+			case PropertyDesc::DataTypes::StateV3F:
+				DataLenght = 8 + (4 * 3);
+				break;
+
+			case PropertyDesc::DataTypes::StateV3FQ4F:
+				DataLenght = 8 + (4 * 7);
+				break;
+
 			}
 
 			DataPtr = (void*) new char[DataLenght];
 		}
 
-		static inline std::shared_ptr<PropertyData> MakeShared(const PropertyDesc& desc)
+		static inline std::shared_ptr<PropertyData> MakeShared(PropertyDesc::Ptr desc)
 		{
 			return std::make_shared<PropertyData>(desc);
 		}
@@ -136,7 +150,7 @@ namespace EntityNetwork
 
 		inline void SetValueI(int val)
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Integer)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Integer)
 				return;
 
 			*(int*)DataPtr = val;
@@ -145,7 +159,7 @@ namespace EntityNetwork
 
 		inline int GetValueI()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Integer)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Integer)
 				return 0;
 
 			return *(int*)DataPtr;
@@ -153,7 +167,7 @@ namespace EntityNetwork
 
 		inline void SetValue3I(int val[])
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector3I)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector3I)
 				return;
 			for(int i = 0; i < 3; i++)
 				((int*)DataPtr)[i] = val[i];
@@ -162,7 +176,7 @@ namespace EntityNetwork
 
 		inline int* GetValue3I()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector3I)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector3I)
 				return nullptr;
 
 			return (int*)DataPtr;
@@ -170,7 +184,7 @@ namespace EntityNetwork
 
 		inline void SetValue4I(int val[])
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector4I)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector4I)
 				return;
 			for (int i = 0; i < 4; i++)
 				((int*)DataPtr)[i] = val[i];
@@ -179,7 +193,7 @@ namespace EntityNetwork
 
 		inline int* GetValue4I()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector4I)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector4I)
 				return nullptr;
 
 			return (int*)DataPtr;
@@ -187,7 +201,7 @@ namespace EntityNetwork
 
 		inline void SetValueF(float val)
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Float)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Float)
 				return;
 
 			*(float*)DataPtr = val;
@@ -196,7 +210,7 @@ namespace EntityNetwork
 
 		inline float GetValueF()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Float)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Float)
 				return 0;
 
 			return *(float*)DataPtr;
@@ -204,7 +218,7 @@ namespace EntityNetwork
 
 		inline void SetValue3F(float val[])
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector3F)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector3F)
 				return;
 			for (int i = 0; i < 3; i++)
 				((float*)DataPtr)[i] = val[i];
@@ -213,15 +227,25 @@ namespace EntityNetwork
 
 		inline float* GetValue3F()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector3F)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector3F)
 				return nullptr;
 
 			return (float*)DataPtr;
 		}
 
+		inline bool GetValue3F(float val[3])
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector3F)
+				return false;
+
+			memcpy(val, DataPtr, 4 * 3);
+
+			return true;
+		}
+
 		inline void SetValue4F(float val[])
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector4F)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector4F)
 				return;
 			for (int i = 0; i < 4; i++)
 				((float*)DataPtr)[i] = val[i];
@@ -230,15 +254,25 @@ namespace EntityNetwork
 
 		inline float* GetValue4F()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector4F)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector4F)
 				return nullptr;
 
 			return (float*)DataPtr;
 		}
 
+		inline bool GetValue4F(float val[4])
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector4F)
+				return false;
+
+			memcpy(val, DataPtr, 4 * 4);
+
+			return true;
+		}
+
 		inline void SetValueD(double val)
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Double)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Double)
 				return;
 			*(double*)DataPtr = val;
 			SetDirty();
@@ -246,7 +280,7 @@ namespace EntityNetwork
 
 		inline double GetValueD()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Double)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Double)
 				return 0;
 
 			return *(double*)DataPtr;
@@ -254,7 +288,7 @@ namespace EntityNetwork
 
 		inline void SetValue3D(double val[])
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector3D)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector3D)
 				return;
 			for (int i = 0; i < 3; i++)
 				((double*)DataPtr)[i] = val[i];
@@ -263,15 +297,25 @@ namespace EntityNetwork
 
 		inline double* GetValue3D()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector3D)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector3D)
 				return nullptr;
 
 			return (double*)DataPtr;
 		}
 
+		inline bool GetValue3D(double val[3])
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector3D)
+				return false;
+
+			memcpy(val, DataPtr, 8 * 3);
+
+			return true;
+		}
+
 		inline void SetValue4D(double val[])
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector4D)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector4D)
 				return;
 			for (int i = 0; i < 4; i++)
 				((double*)DataPtr)[i] = val[i];
@@ -280,15 +324,25 @@ namespace EntityNetwork
 
 		inline double* GetValue4D()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Vector4D)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector4D)
 				return nullptr;
 
 			return (double*)DataPtr;
 		}
 
+		inline bool GetValue4F(double val[4])
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Vector4D)
+				return false;
+
+			memcpy(val, DataPtr, 8 * 4);
+
+			return true;
+		}
+
 		inline void SetValueStr(const char* value)
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::String)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::String)
 				return;
 
 			DataLenght = strlen(value)+1;
@@ -303,7 +357,7 @@ namespace EntityNetwork
 
 		inline void SetValueStr(const std::string& value)
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::String)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::String)
 				return;
 
 			DataLenght = value.size() + 1;
@@ -318,7 +372,7 @@ namespace EntityNetwork
 
 		inline std::string GetValueStr()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::String)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::String)
 				return std::string();
 
 			return std::string((const char*)DataPtr);
@@ -326,7 +380,7 @@ namespace EntityNetwork
 
 		inline void SetValueBuffer(void* value, size_t lenght)
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Buffer)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Buffer)
 				return;
 
 			DataLenght = lenght;
@@ -340,15 +394,73 @@ namespace EntityNetwork
 
 		inline void* GetValueBuffer()
 		{
-			if (Descriptor.DataType != PropertyDesc::DataTypes::Buffer)
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Buffer)
 				return nullptr;
 
 			return DataPtr;
 		}
 
+		inline void SetValueStateUpdatePos(StateUpdatePos val)
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::StateV3F)
+				return;
+			memcpy(DataPtr, &val, DataLenght);
+			SetDirty();
+		}
+
+		inline StateUpdatePos GetValueStateUpdatePos()
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::StateV3F)
+				return StateUpdatePos();
+
+			return *(StateUpdatePos*)DataPtr;
+		}
+
+		inline void SetValueStateUpdatePosRot(StateUpdatePosRot val)
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::StateV3FQ4F)
+				return;
+			memcpy(DataPtr, &val, DataLenght);
+			SetDirty();
+		}
+
+		inline StateUpdatePosRot GetValueStateUpdatePosRot()
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::StateV3FQ4F)
+				return StateUpdatePosRot();
+
+			return *(StateUpdatePosRot*)DataPtr;
+		}
+
+		inline void SetValueWriter(MessageBufferBuilder& builder)
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Buffer)
+				return;
+
+			int offset = 0;
+			if (builder.Command != MessageCodes::NoCode)
+				offset = 1;
+
+			DataLenght = builder.Data.size() - offset;
+			if (DataPtr != nullptr)
+				delete[] DataPtr;
+
+			DataPtr = (void*) new char[DataLenght];
+			memcpy(DataPtr, &builder.Data[offset], DataLenght);
+			SetDirty();
+		}
+
+		inline MessageBufferReader GetValueReader()
+		{
+			if (Descriptor->DataType != PropertyDesc::DataTypes::Buffer)
+				return MessageBufferReader(nullptr);
+
+			return MessageBufferReader(MessageBuffer::MakeShared(DataPtr, DataLenght, false), false);
+		}
+
 		inline void PackValue(MessageBufferBuilder& builder)
 		{
-			builder.AddByte(Descriptor.ID);
+			builder.AddByte(Descriptor->ID);
 			builder.AddBuffer(DataPtr, DataLenght);
 		}
 

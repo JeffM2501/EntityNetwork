@@ -28,6 +28,29 @@ namespace EntityNetwork
 {
 	namespace Client
 	{
+		EntityInstance::Ptr ClientWorld::NewEntityInstance(const EntityDesc& desc, int64_t id)
+		{
+			auto facItr = EntityFactories.find(desc.ID);
+			if (facItr != EntityFactories.end())
+				return facItr->second(desc, id);
+			return CreateEntityInstance(desc, id);
+		}
+
+		void ClientWorld::RegisterEntityFactory(int64_t id, EntityInstance::CreateFunction function)
+		{
+			EntityFactories[id] = function;
+		}
+
+		void ClientWorld::RegisterEntityFactory(const std::string& name, EntityInstance::CreateFunction function)
+		{
+			auto ent = EntityDefs.FindIF([&name](const int& id, EntityDesc& desc) {return desc.Name == name; });
+
+			if (ent != std::nullopt)
+				RegisterEntityFactory(ent->ID, function);
+			else
+				PendingEntityFactories[name] = function;
+		}
+
 		void ClientWorld::ProcessAddEntity(MessageBufferReader& reader)
 		{
 			auto id = reader.ReadID();
@@ -38,7 +61,7 @@ namespace EntityNetwork
 			if (desc == nullptr || desc->AllowClientCreate() || !desc->SyncCreate())	// we are not supposed to get this from the remote
 				return;
 			
-			EntityInstance::Ptr inst = CreateEntityInstance(*desc, id);;
+			EntityInstance::Ptr inst = NewEntityInstance(*desc, id);;
 			inst->OwnerID = owner;
 			
 			int index = 0;
@@ -118,7 +141,7 @@ namespace EntityNetwork
 				int prop = reader.ReadInt();
 				if (prop < 0 || prop >= (*inst)->Properties.Size())
 					continue;;
-				(*inst)->Properties[prop]->UnpackValue(reader, (*inst)->Properties[prop]->Descriptor.UpdateFromServer());
+				(*inst)->Properties[prop]->UnpackValue(reader, (*inst)->Properties[prop]->Descriptor->UpdateFromServer());
 			}
 			EntityEvents.Call(EntityEventTypes::EntityUpdated, [&inst](auto func) {func(*inst); });
 		}
@@ -131,7 +154,7 @@ namespace EntityNetwork
 			if (entDef == std::nullopt || entDef->AllowServerCreate()) // invalid or client only create
 				return EntityInstance::InvalidID;
 
-			EntityInstance::Ptr ent = CreateEntityInstance(*entDef, id);
+			EntityInstance::Ptr ent = NewEntityInstance(*entDef, id);
 			ent->OwnerID = Self->GetID();
 			EntityInstances.Insert(ent->ID, ent);
 

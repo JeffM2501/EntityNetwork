@@ -22,11 +22,12 @@
 
 #include <iostream>
 #include <thread>
+#include <time.h>
 
 #define ENET_IMPLEMENTATION
 #include "enet/enet.h"
 
-#include "EntityNetwork.h"
+#include "ServerTest.h"
 
 using namespace EntityNetwork;
 using namespace EntityNetwork::Server;
@@ -35,9 +36,84 @@ using namespace EntityNetwork::Server;
 const int MaxClients = 64;
 const int DefaultHost = 1701;
 
+ServerWorld TheWorld;
+
+int ClientSpawnRequestRPC;
+
+void SetupWorldData()
+{
+	// players
+	TheWorld.CreateController = [](int64_t id) {return std::make_shared<ServerEntityController>(id); };
+
+	TheWorld.RegisterControllerProperty("Name", PropertyDesc::DataTypes::String, 32);
+	TheWorld.RegisterControllerProperty("Score", PropertyDesc::DataTypes::Integer);
+	TheWorld.ControllerEvents.Subscribe(ServerWorld::ControllerEventTypes::Created, HandleClientCreate);
+
+	// tanks
+	EntityDesc tank;
+	tank.Name = "PlayerTank";
+	tank.IsAvatar = true;
+	tank.CreateScope = EntityDesc::CreateScopes::ServerSync;
+
+	PropertyDesc::Ptr image = PropertyDesc::Make();
+	image->Name = "Image";
+	image->DataType = PropertyDesc::DataTypes::String;
+	image->Scope = PropertyDesc::Scopes::ServerPushSync;
+	tank.AddPropertyDesc(image);
+
+	PropertyDesc::Ptr state = PropertyDesc::Make();
+	state->Name = "State";
+	state->DataType = PropertyDesc::DataTypes::Vector3F;
+	state->Scope = PropertyDesc::Scopes::ClientPushSync;
+
+	tank.AddPropertyDesc(state);
+
+	TheWorld.RegisterEntityDesc(tank);
+
+	// map data
+	TheWorld.GetWorldPropertyData(TheWorld.RegisterWorldPropertyData("Width", EntityNetwork::PropertyDesc::DataTypes::Integer))->SetValueI(800);
+	TheWorld.GetWorldPropertyData(TheWorld.RegisterWorldPropertyData("Height", EntityNetwork::PropertyDesc::DataTypes::Integer))->SetValueI(800);
+
+	MessageBufferBuilder mapObjects(false);
+
+	std::vector<std::string> worldTileIDs;
+	worldTileIDs.push_back("crateWood.png");
+	worldTileIDs.push_back("crateMetal.png");
+	worldTileIDs.push_back("barricadeMetal.png");
+	worldTileIDs.push_back("barricadeWood.png");
+	worldTileIDs.push_back("treeBrown_large.png");
+	worldTileIDs.push_back("treeBrown_small.png");
+	worldTileIDs.push_back("treeGreen_large.png");
+	worldTileIDs.push_back("treeGreen_small.png");
+	mapObjects.AddInt(worldTileIDs.size());
+	for (auto& tile : worldTileIDs)
+		mapObjects.AddString(tile);
+
+	mapObjects.AddString("tileGrass2.png");
+
+	mapObjects.AddInt(10);
+	for (int i = 0; i < 10; i++)
+	{
+		int id = rand() % worldTileIDs.size();
+		int x = rand() % 750 + 25;
+		int y = rand() % 750 + 25;
+		mapObjects.AddInt(id);
+		mapObjects.AddInt(x);
+		mapObjects.AddInt(y);
+	}
+	TheWorld.GetWorldPropertyData(TheWorld.RegisterWorldPropertyData("Map", EntityNetwork::PropertyDesc::DataTypes::Buffer))->SetValueWriter(mapObjects);
+
+	// RPCS
+	auto requestSpawn = RemoteProcedureDef::CreateServerSideRPC("RequestSpawn");
+	ClientSpawnRequestRPC = TheWorld.RegisterRemoteProcedure(requestSpawn);
+
+	TheWorld.AssignRemoteProcedureFunction(ClientSpawnRequestRPC, HandleSpawnRequest);
+}
+
 int main()
 {
     std::cout << "Server Startup\n";
+	srand(time(nullptr));
 
 	enet_initialize();
 
@@ -51,39 +127,7 @@ int main()
 	if (ServerHost == nullptr)
 		return -1;
 
-	ServerWorld world;
-	world.RegisterControllerProperty("name", PropertyDesc::DataTypes::String, 32);
-
-	EntityDesc eDesc;
-	eDesc.Name = "sample_ent";
-	eDesc.CreateScope = EntityDesc::CreateScopes::ServerSync;
-	eDesc.AddPropertyDesc("value", PropertyDesc::DataTypes::Integer);
-	world.RegisterEntityDesc(eDesc);
-	
-	int propID = world.RegisterWorldPropertyData("WorldProp1", EntityNetwork::PropertyDesc::DataTypes::Integer);
-	world.GetWorldPropertyData(propID)->SetValueI(1);
-
-	// in 5 seconds change the world data property to make sure it gets sent out
-	auto testThread = std::thread([&world, propID]()
-		{
-			std::this_thread::sleep_for(std::chrono::seconds(5));
-			std::cout << "Server Trigger Property Change\n";
-			auto prop = world.GetWorldPropertyData(propID);
-			prop->SetValueI(5);
-		});
-
-	int clientProcID = world.RegisterRemoteProcedure(RemoteProcedureDef::CreateClientSideRPC("clientRPC1", true).DefineArgument(PropertyDesc::DataTypes::String));
-	int serverProcID = world.RegisterRemoteProcedure(RemoteProcedureDef::CreateServerSideRPC("serverSideRPC1").DefineArgument(PropertyDesc::DataTypes::Integer));
-	
-	world.AssignRemoteProcedureFunction(serverProcID, [&world, propID, clientProcID](ServerEntityController::Ptr sender, const std::vector<PropertyData::Ptr>& args)
-	{
-		std::cout << " Client " << sender->GetID() << " triggered server rpc1 with value " << args[0]->GetValueI() << "\n";
-		world.GetWorldPropertyData(propID)->SetValueI(world.GetWorldPropertyData(propID)->GetValueI() + 2);
-
-		auto args2 = world.GetRPCArgs(clientProcID);
-		args2[0]->SetValueStr("Test Value " + std::to_string(sender->GetID()));
-		world.CallRPC(clientProcID, sender, args2);
-	});
+	SetupWorldData();
 
 	std::vector<ENetPeer*> connectedPeers;
 
@@ -99,22 +143,21 @@ int main()
 			case ENetEventType::ENET_EVENT_TYPE_CONNECT:
 			{
 				std::cout << "Server Peer Connected\n";
-				auto peer = world.AddRemoteController(peerID);
-				connectedPeers.push_back(evt.peer);
+				ServerPeer::Ptr peer = ServerPeer::Cast(TheWorld.AddRemoteController(peerID));
+				peer->NetworkPeer = evt.peer;
 			}
 			break;
 
 			case ENetEventType::ENET_EVENT_TYPE_DISCONNECT_TIMEOUT:
 			case ENetEventType::ENET_EVENT_TYPE_DISCONNECT:
 				std::cout << "Server Peer Disconnected\n";
-				world.RemoveRemoteController(peerID);
-				connectedPeers.erase(std::find(connectedPeers.begin(), connectedPeers.end(), evt.peer));
+				TheWorld.RemoveRemoteController(peerID);
 			break;
 
 			case ENetEventType::ENET_EVENT_TYPE_RECEIVE:
 				std::cout << "Server Peer Receive Data\n";
 				if (evt.channelID == 0)
-					world.AddInboundData(peerID, MessageBuffer::MakeShared(evt.packet->data, evt.packet->dataLength, false));
+					TheWorld.AddInboundData(peerID, MessageBuffer::MakeShared(evt.packet->data, evt.packet->dataLength, false));
 				else
 				{
 					// non entity data, must be other game data, like chat or something
@@ -129,23 +172,25 @@ int main()
 			}
 		}
 
-		world.Update();
+		TheWorld.Update();
 
 		// send any pending outbound sync messages
-		for (auto peer : connectedPeers)
-		{
-			auto msg = world.PopOutboundData(peer->incomingPeerID);
-			while (msg != nullptr)
+		TheWorld.RemoteEnitityControllers.DoForEach([](auto& id, ServerEntityController::Ptr& p)
 			{
-				std::cout << "Server Peer Send Data\n";
-				ENetPacket* packet = enet_packet_create(msg->MessageData, msg->MessageLenght, ENET_PACKET_FLAG_RELIABLE);
-				enet_peer_send(peer, 0, packet);
-				msg = world.PopOutboundData(peer->incomingPeerID);
-			}
-		}
+				ServerPeer::Ptr peer = ServerPeer::Cast(p);
+
+				auto msg = TheWorld.PopOutboundData(peer->NetworkPeer->incomingPeerID);
+				while (msg != nullptr)
+				{
+					std::cout << "Server Peer Send Data\n";
+					ENetPacket* packet = enet_packet_create(msg->MessageData, msg->MessageLenght, ENET_PACKET_FLAG_RELIABLE);
+					enet_peer_send(peer->NetworkPeer, 0, packet);
+					msg = TheWorld.PopOutboundData(peer->NetworkPeer->incomingPeerID);
+				}
+			});
 
 		//std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
-	testThread.join();
+
 }
 

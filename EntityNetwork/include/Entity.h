@@ -47,6 +47,7 @@ namespace EntityNetwork
 		MutexedVector<PropertyData::Ptr> Properties;
 
 		EntityInstance(const EntityDesc& desc);
+		virtual ~EntityInstance() {}
 
 		bool Dirty();
 
@@ -65,6 +66,15 @@ namespace EntityNetwork
 		static inline bool CanSyncFunc(int64_t id, Ptr ent)
 		{
 			return ent != nullptr && ent->Descriptor.SyncCreate();
+		}
+
+		template <class T>
+		static inline EntityInstance::Ptr Create(const EntityDesc& d, int64_t id)
+		{
+			std::shared_ptr<T> tPtr = std::make_shared<T>(d);
+			EntityInstance::Ptr ePtr = std::dynamic_pointer_cast<EntityInstance>(tPtr);
+			ePtr->SetID(id);
+			return ePtr;
 		}
 
 	protected:

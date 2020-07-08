@@ -73,13 +73,21 @@ namespace EntityNetwork
 			Vector4D = 8,
 			String = 9,
 			Buffer = 10,
+			StateV3F = 11,
+			StateV3FQ4F = 12,
 		};
 		DataTypes DataType = DataTypes::Integer;
 
 		size_t BufferSize = 0;
 
-		typedef std::vector<PropertyDesc> Vec;
-		typedef std::map<std::string, PropertyDesc> Map;
+		typedef std::shared_ptr<PropertyDesc> Ptr;
+		typedef std::vector<Ptr> Vec;
+		typedef std::map<std::string, Ptr> Map;
+
+		static inline PropertyDesc::Ptr Make()
+		{
+			return std::make_shared< PropertyDesc>();
+		}
 
 		inline bool operator == (const PropertyDesc& rhs) const
 		{

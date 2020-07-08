@@ -47,14 +47,31 @@ namespace EntityNetwork
 		RemoteProcedureDef(const std::string& name) :Name(name) {}
 		RemoteProcedureDef(const std::string& name, Scopes scope) :Name(name), Scope(scope){}
 
-		static RemoteProcedureDef CreateClientSideRPC(const std::string& name, bool allClients)
+		typedef std::shared_ptr<RemoteProcedureDef> Ptr;
+
+		static inline Ptr Make()
 		{
-			return RemoteProcedureDef(name, allClients ? Scopes::ServerToAllClients : Scopes::ServerToSingleClient);
+			return std::make_shared<RemoteProcedureDef>();
 		}
 
-		static RemoteProcedureDef CreateServerSideRPC(const std::string& name)
+		static inline Ptr Make(const std::string& name)
 		{
-			return RemoteProcedureDef(name, Scopes::ClientToServer);
+			return std::make_shared<RemoteProcedureDef>(name);
+		}
+
+		static inline Ptr Make(const std::string& name, Scopes scope)
+		{
+			return std::make_shared<RemoteProcedureDef>(name, scope);
+		}
+
+		static RemoteProcedureDef::Ptr CreateClientSideRPC(const std::string& name, bool allClients)
+		{
+			return RemoteProcedureDef::Make(name, allClients ? Scopes::ServerToAllClients : Scopes::ServerToSingleClient);
+		}
+
+		static RemoteProcedureDef::Ptr CreateServerSideRPC(const std::string& name)
+		{
+			return RemoteProcedureDef::Make(name, Scopes::ClientToServer);
 		}
 		
 		inline bool SendFromClient() const
@@ -69,18 +86,18 @@ namespace EntityNetwork
 
 		inline RemoteProcedureDef& DefineArgument(PropertyDesc::DataTypes dataType, size_t bufferSize = 0)
 		{
-			PropertyDesc desc;
-			desc.ID = static_cast<int>(ArgumentDefs.size());
-			desc.Name = std::to_string(desc.ID);
-			desc.DataType = dataType;
-			desc.BufferSize = bufferSize;
+			PropertyDesc::Ptr desc = PropertyDesc::Make();
+			desc->ID = static_cast<int>(ArgumentDefs.size());
+			desc->Name = std::to_string(desc->ID);
+			desc->DataType = dataType;
+			desc->BufferSize = bufferSize;
 
 			ArgumentDefs.push_back(desc);
 			return *this;
 		}
 
-		std::vector<PropertyDesc> ArgumentDefs;
+		std::vector<PropertyDesc::Ptr> ArgumentDefs;
 
-		typedef std::shared_ptr<RemoteProcedureDef> Ptr;
+		
 	};
 }
