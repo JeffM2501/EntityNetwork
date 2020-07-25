@@ -255,7 +255,7 @@ void DrawPlayers()
 	{
 		PlayerTank::Ptr player = std::dynamic_pointer_cast<PlayerTank>(tank);
 
-		BlitTextureCenter(player->AvatarPicture, player->DrawPoint);
+		BlitTextureCenter(player->AvatarPicture, player->DrawPoint, 90.0f);// player->DrawAngle);
 	}
 }
 

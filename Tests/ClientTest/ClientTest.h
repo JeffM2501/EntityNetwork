@@ -94,6 +94,7 @@ public:
 
 	SDL_Texture* AvatarPicture = nullptr;
 	SDL_Point DrawPoint;
+	float DrawAngle = 0;
 
 	typedef std::shared_ptr<PlayerTank> Ptr;
 
@@ -110,18 +111,21 @@ public:
 			float* state = ptr->GetValue3F();
 			DrawPoint.x = (int)(state[0]);
 			DrawPoint.y = (int)(state[1]);
+			DrawAngle = state[2];
 		}
 	}
 
-	void SetPostion(int x, int y)
+	void SetPostion(int x, int y, double angle)
 	{
 		DrawPoint.x = x;
 		DrawPoint.y = y;
+		DrawAngle = angle;
 		if (StatePtr != nullptr)
 		{
 			float pos[3] = { 0 };
 			pos[0] = (float)x;
 			pos[1] = (float)y;
+			pos[2] = DrawAngle;
 			StatePtr->SetValue3F(pos);
 		}
 	}

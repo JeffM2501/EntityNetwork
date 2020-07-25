@@ -101,6 +101,7 @@ namespace EntityNetwork
 
 			EntityInstances.Insert(id, inst);
 			inst->Created();
+			inst->CleanAll();
 			EntityEvents.Call(EntityEventTypes::EntityAdded, [&inst](auto func) {func(inst);});
 		}
 
@@ -171,6 +172,7 @@ namespace EntityNetwork
 				(*inst)->PropertyChanged((*inst)->Properties[prop]);
 			}
 			EntityEvents.Call(EntityEventTypes::EntityUpdated, [&inst](auto func) {func(*inst); });
+			(*inst)->CleanAll();
 		}
 
 		int64_t ClientWorld::CreateInstance(int entityTypeID)

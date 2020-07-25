@@ -290,23 +290,29 @@ namespace EntityNetwork
 
 										bool transmit = prop->Descriptor->TransmitDef();
 										if (transmit && prop->Descriptor->Scope == PropertyDesc::Scopes::ClientPushSync)
-											transmit = entity->OwnerID == peer->GetID(); // dont send them back updates for a value they pushed to us
+											transmit = entity->OwnerID == peer->GetID(); // don't send them back updates for a value they pushed to us
+
+										if (index <= knownEnt->DataRevisions.size())
+											knownEnt->DataRevisions.push_back(0);
 											
-										if (rev != knownEnt->DataRevisions[index] && transmit) // different and we sync it
+										if (transmit && rev != knownEnt->DataRevisions[index] ) // different and we sync it
 											dirtyProps.push_back(prop);
 										knownEnt->DataRevisions[index] = rev;
+										index++;
 									});
-
-								MessageBufferBuilder updateMsg;
-								updateMsg.Command = MessageCodes::SetEntityDataValues;
-								updateMsg.AddID(id);
-
-								for (auto p : dirtyProps)
+								if (dirtyProps.size() > 0)
 								{
-									p->PackValue(updateMsg);
-								}
+									MessageBufferBuilder updateMsg;
+									updateMsg.Command = MessageCodes::SetEntityDataValues;
+									updateMsg.AddID(id);
 
-								Send(peer, updateMsg);
+									for (auto p : dirtyProps)
+									{
+										p->PackValue(updateMsg);
+									}
+
+									Send(peer, updateMsg);
+								}
 							}
 						});
 				});

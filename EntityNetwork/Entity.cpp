@@ -38,6 +38,11 @@ namespace EntityNetwork
 		return dirty;
 	}
 
+	void EntityInstance::CleanAll()
+	{
+		Properties.DoForEach([](PropertyData::Ptr ptr) {ptr->SetClean(); });
+	}
+
 	std::vector<PropertyData::Ptr> EntityInstance::GetDirtyProperties(KnownEnityDataset& knownSet)
 	{
 		int index = 0;

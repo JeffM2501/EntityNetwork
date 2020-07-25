@@ -47,6 +47,34 @@ namespace EntityNetwork
 				pendingMods.push_back(builder.Pack());
 			}
 
+			// find all my entities
+			EntityInstances.DoForEachIf([this](int64_t id, EntityInstance::Ptr ent) { return ent->OwnerID == Self->GetID(); }, [&pendingMods](int64_t id, EntityInstance::Ptr myEnt)
+				{
+					// find any dirty properties that we can send to the server
+					MessageBufferBuilder builder;
+					builder.Command = MessageCodes::SetEntityDataValues;
+					builder.AddID(myEnt->ID);
+
+					bool hasDirty = false;
+
+					myEnt->Properties.DoForEach([&pendingMods,&hasDirty,&builder](PropertyData::Ptr prop)
+						{
+							if (prop->Descriptor->Scope == PropertyDesc::Scopes::ClientPushSync || prop->Descriptor->Scope == PropertyDesc::Scopes::BidirectionalSync)
+							{
+								if (prop->IsDirty())
+								{
+									hasDirty = true;
+									prop->PackValue(builder);
+								}
+							}
+
+							prop->SetClean();
+						});
+
+					if (hasDirty)
+						pendingMods.push_back(builder.Pack());
+				});
+
 			for (auto msg : pendingMods)
 				Send(msg);
 		}

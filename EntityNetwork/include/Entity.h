@@ -50,6 +50,7 @@ namespace EntityNetwork
 		virtual ~EntityInstance() {}
 
 		bool Dirty();
+		void CleanAll();
 
 		std::vector<PropertyData::Ptr> GetDirtyProperties(KnownEnityDataset& knownSet);
 
