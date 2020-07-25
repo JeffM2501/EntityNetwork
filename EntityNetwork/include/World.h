@@ -50,16 +50,17 @@ namespace EntityNetwork
 		PropertyData::Ptr GetWorldPropertyData(int id);
 		PropertyData::Ptr GetWorldPropertyData(const std::string& name);
 
+		EntityDesc::Ptr GetEntityDef(int64_t index);
+		EntityDesc::Ptr GetEntityDef(const std::string& name);
+
 	protected:
 		// entity controllers
 		MutexedVector<PropertyDesc::Ptr> EntityControllerProperties;
 		MutexedVector<PropertyDesc::Ptr> WorldPropertyDefs;
-		MutexedMap<int, EntityDesc>	EntityDefs;
-
-		EntityDesc* GetEntityDef(int index);
+		MutexedMap<int64_t, EntityDesc::Ptr>	EntityDefs;
 
 		virtual void SetupControllerProperty(int index);
-		virtual void SetupEntityController(EntityController& controller);
+		virtual void SetupEntityController(EntityController::Ptr controller);
 
 		// world properties
 		MutexedVector<PropertyData::Ptr> WorldProperties;

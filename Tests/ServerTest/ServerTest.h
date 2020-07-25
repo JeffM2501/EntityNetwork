@@ -15,6 +15,9 @@ public:
 
 	typedef std::shared_ptr< ServerPeer> Ptr;
 
+	ServerPeer(int64_t id) : ServerEntityController(id) {}
+	virtual ~ServerPeer() {}
+
 	static inline Ptr Cast(ServerEntityController::Ptr p)
 	{
 		return std::dynamic_pointer_cast<ServerPeer>(p);

@@ -27,9 +27,9 @@ namespace EntityNetwork
 	namespace Server
 	{
 
-		EntityInstance::Ptr ServerWorld::NewEntityInstance(const EntityDesc& desc, int64_t id)
+		EntityInstance::Ptr ServerWorld::NewEntityInstance(EntityDesc::Ptr desc, int64_t id)
 		{
-			auto facItr = EntityFactories.find(desc.ID);
+			auto facItr = EntityFactories.find(desc->ID);
 			if (facItr != EntityFactories.end())
 				return facItr->second(desc, id);
 			return CreateEntityInstance(desc, id);
@@ -42,25 +42,50 @@ namespace EntityNetwork
 
 		void ServerWorld::RegisterEntityFactory(const std::string& name, EntityInstance::CreateFunction function)
 		{
-			auto ent = EntityDefs.FindIF([&name](const int& id, EntityDesc& desc) {return desc.Name == name; });
+			auto ent = GetEntityDef(name);
 
-			if (ent != std::nullopt)
+			if (ent != nullptr)
 				RegisterEntityFactory(ent->ID, function);
 			else
 				PendingEntityFactories[name] = function;
 		}
 
-		int ServerWorld::RegisterEntityDesc(EntityDesc& desc)
+		int ServerWorld::RegisterEntityDesc(EntityDesc::Ptr desc)
 		{
-			desc.ID = static_cast<int>(EntityDefs.Size());
-			SendToAll(BuildEntityDefMessage(desc.ID));
-			EntityDefs.Insert(desc.ID, desc);
+			if (desc == nullptr)
+				return -1;
+			desc->ID = static_cast<int>(EntityDefs.Size());
+			EntityDefs.Insert(desc->ID, desc);
 
-			auto itr = PendingEntityFactories.find(desc.Name);
+			SendToAll(BuildEntityDefMessage(desc->ID));
+
+			auto itr = PendingEntityFactories.find(desc->Name);
 			if (itr != PendingEntityFactories.end())
-				EntityFactories[desc.ID] = itr->second;
+				EntityFactories[desc->ID] = itr->second;
 
-			return desc.ID;
+			return desc->ID;
+		}
+
+		std::vector<EntityInstance::Ptr> ServerWorld::GetEntitiesOfType(int64_t typeID)
+		{
+			std::vector<EntityInstance::Ptr> ents;
+
+			EntityInstances.DoForEach([&ents, typeID](auto id, EntityInstance::Ptr& ptr)
+				{
+					if (ptr->Descriptor->ID == typeID)
+						ents.push_back(ptr);
+				});
+
+			return ents;
+		}
+
+		std::vector<EntityInstance::Ptr> ServerWorld::GetEntitiesOfType(const std::string& typeName)
+		{
+			auto ent = GetEntityDef(typeName);
+			if (ent == nullptr)
+				return std::vector<EntityInstance::Ptr>();
+
+			return GetEntitiesOfType(ent->ID);
 		}
 
 		MessageBuffer::Ptr ServerWorld::BuildEntityDefMessage(int index)
@@ -91,28 +116,29 @@ namespace EntityNetwork
 
 		int64_t ServerWorld::CreateInstance(int entityTypeID, int64_t ownerID, EntityFunciton setupCallback)
 		{
-			auto entDef = EntityDefs.Find(entityTypeID);
-			if (entDef == std::nullopt || !entDef->AllowServerCreate()) // invalid or client only create
+			auto entDef = GetEntityDef(entityTypeID);
+			if (entDef == nullptr || !entDef->AllowServerCreate()) // invalid or client only create
 				return EntityInstance::InvalidID;
 
-			EntityInstance::Ptr ent = NewEntityInstance(*entDef, EntityInstances.Size());
+			EntityInstance::Ptr ent = NewEntityInstance(entDef, EntityInstances.Size());
 			ent->OwnerID = ownerID;
 			EntityInstances.Insert(ent->ID, ent);
 
 			if (setupCallback != nullptr)
 				setupCallback(ent);
 
+			ent->Created();
 			EntityEvents.Call(EntityEventTypes::EntityAdded, [&ent](auto func) {func(ent); });
 			return ent->ID;
 		}
 
 		int64_t ServerWorld::CreateInstance(const std::string& entityType, int64_t ownerID, EntityFunciton setupCallback)
 		{
-			auto ent = EntityDefs.FindIF([&entityType](const int& id, EntityDesc& desc) {return desc.Name == entityType; });
-			if (ent == std::nullopt)
+			auto def = GetEntityDef(entityType);
+			if (def == nullptr)
 				return EntityInstance::InvalidID;
 
-			return CreateInstance(ent->ID, ownerID, setupCallback);
+			return CreateInstance(def->ID, ownerID, setupCallback);
 		}
 
 		bool ServerWorld::RemoveInstance(int64_t entityID)
@@ -142,8 +168,8 @@ namespace EntityNetwork
 			auto entityTypeID = reader.ReadInt();
 			auto localID = reader.ReadID();
 
-			auto entDef = EntityDefs.Find(entityTypeID);
-			if (entDef == std::nullopt || !entDef->AllowClientCreate() || !entDef->SyncCreate()) // invalid or server only create
+			auto entDef = GetEntityDef(entityTypeID);
+			if (entDef == nullptr || !entDef->AllowClientCreate() || !entDef->SyncCreate()) // invalid or server only create
 			{
 				MessageBufferBuilder denyMessage;
 				denyMessage.Command = MessageCodes::AcceptClientEntity;
@@ -153,7 +179,7 @@ namespace EntityNetwork
 				return;
 			}
 
-			EntityInstance::Ptr ent = NewEntityInstance(*entDef, EntityInstances.Size());
+			EntityInstance::Ptr ent = NewEntityInstance(entDef, EntityInstances.Size());
 			ent->OwnerID = peer->ID;
 
 			int index = 0;
@@ -167,6 +193,7 @@ namespace EntityNetwork
 				index++;
 			}
 			EntityInstances.Insert(ent->ID, ent);
+			ent->Created();
 			EntityEvents.Call(EntityEventTypes::EntityAdded, [&ent](auto func) {func(ent); });
 			
 			// send back the acceptance
@@ -189,7 +216,7 @@ namespace EntityNetwork
 		{
 			auto entityID = reader.ReadID();
 			auto ent = EntityInstances.Find(entityID);
-			if (ent == std::nullopt || (*ent)->OwnerID != peer->ID || (*ent)->Descriptor.AllowServerCreate() || !(*ent)->Descriptor.SyncCreate())
+			if (ent == std::nullopt || (*ent)->OwnerID != peer->ID || (*ent)->Descriptor->AllowServerCreate() || !(*ent)->Descriptor->SyncCreate())
 				return;
 
 			RemoveInstance(entityID);
@@ -202,7 +229,7 @@ namespace EntityNetwork
 			if (ent == std::nullopt || (*ent)->OwnerID != peer->ID)
 				return;
 
-			if (!(*ent)->Descriptor.AllowClientCreate() || !(*ent)->Descriptor.SyncCreate())
+			if (!(*ent)->Descriptor->AllowClientCreate() || !(*ent)->Descriptor->SyncCreate())
 			{
 				auto known = peer->KnownEnitities.Find(entityID);
 				if (known != std::nullopt)
@@ -217,6 +244,7 @@ namespace EntityNetwork
 				if (prop != nullptr)
 				{
 					(*prop)->UnpackValue(reader, (*prop)->Descriptor->UpdateFromClient());
+					(*ent)->PropertyChanged(*prop);
 				}
 			}
 			EntityEvents.Call(EntityEventTypes::EntityUpdated, [&ent](auto func) {func(*ent); });
@@ -239,7 +267,7 @@ namespace EntityNetwork
 								MessageBufferBuilder addMsg;
 								addMsg.Command = MessageCodes::AddEntity;
 								addMsg.AddID(id);
-								addMsg.AddInt(entity->Descriptor.ID);
+								addMsg.AddInt(entity->Descriptor->ID);
 								addMsg.AddID(entity->OwnerID);
 								
 								KnownEnityDataset& dataset = peer->KnownEnitities.Insert(id, KnownEnityDataset());

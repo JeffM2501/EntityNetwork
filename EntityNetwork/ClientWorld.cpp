@@ -175,8 +175,8 @@ namespace EntityNetwork
 				RegisterControllerPropertyDesc(desc);
 				if (Self != nullptr)	// if we are connected, fix all the other peers
 				{
-					SetupEntityController(static_cast<EntityController&>(*Self));
-					Peers.DoForEach([this](auto id, auto peer) {SetupEntityController(*peer); });
+					SetupEntityController(Self);
+					Peers.DoForEach([this](auto id, auto peer) {SetupEntityController(peer); });
 				}
 				PropertyEvents.Call(PropertyEventTypes::ControllerPropertyDefAdded, [&desc](auto func) {func(nullptr, desc->ID); });
 			}
@@ -214,27 +214,28 @@ namespace EntityNetwork
 			}
 			else if (reader.Command == MessageCodes::AddEntityDef)
 			{
-				EntityDesc def;
-				def.ID = reader.ReadInt();
-				def.Name = reader.ReadString();
-				def.IsAvatar = reader.ReadBool();
-				def.CreateScope = static_cast<EntityDesc::CreateScopes>(reader.ReadByte());
-				while (reader.Done())
+				EntityDesc::Ptr	 def = EntityDesc::Make();
+				def->ID = reader.ReadInt();
+				def->Name = reader.ReadString();
+				def->IsAvatar = reader.ReadBool();
+				def->CreateScope = static_cast<EntityDesc::CreateScopes>(reader.ReadByte());
+				while (!reader.Done())
 				{
 					PropertyDesc::Ptr prop = PropertyDesc::Make();
 					prop->ID = reader.ReadInt();
 					prop->Scope = static_cast<PropertyDesc::Scopes>(reader.ReadByte());
 					prop->Name = reader.ReadString();
 					prop->DataType = static_cast<PropertyDesc::DataTypes>(reader.ReadByte());
+					def->AddPropertyDesc(prop);
 				}
 
-				EntityDefs.Insert(def.ID, def);
+				EntityDefs.Insert(def->ID, def);
 
-				auto itr = PendingEntityFactories.find(def.Name);
+				auto itr = PendingEntityFactories.find(def->Name);
 				if (itr != PendingEntityFactories.end())
-					EntityFactories[def.ID] = itr->second;
+					EntityFactories[def->ID] = itr->second;
 
-				PropertyEvents.Call(PropertyEventTypes::EntityDefAdded, [&def](auto func) {func(nullptr, def.ID); });
+				PropertyEvents.Call(PropertyEventTypes::EntityDefAdded, [&def](auto func) {func(nullptr, def->ID); });
 			}
 		}
 	}

@@ -28,9 +28,12 @@ namespace EntityNetwork
 {
 	namespace Client
 	{
-		EntityInstance::Ptr ClientWorld::NewEntityInstance(const EntityDesc& desc, int64_t id)
+		EntityInstance::Ptr ClientWorld::NewEntityInstance(EntityDesc::Ptr desc, int64_t id)
 		{
-			auto facItr = EntityFactories.find(desc.ID);
+			if (desc == nullptr)
+				return nullptr;
+
+			auto facItr = EntityFactories.find(desc->ID);
 			if (facItr != EntityFactories.end())
 				return facItr->second(desc, id);
 			return CreateEntityInstance(desc, id);
@@ -43,39 +46,61 @@ namespace EntityNetwork
 
 		void ClientWorld::RegisterEntityFactory(const std::string& name, EntityInstance::CreateFunction function)
 		{
-			auto ent = EntityDefs.FindIF([&name](const int& id, EntityDesc& desc) {return desc.Name == name; });
+			auto ent = GetEntityDef(name);
 
-			if (ent != std::nullopt)
+			if (ent != nullptr)
 				RegisterEntityFactory(ent->ID, function);
 			else
 				PendingEntityFactories[name] = function;
+		}
+
+
+		std::vector<EntityInstance::Ptr> ClientWorld::GetEntitiesOfType(int64_t typeID)
+		{
+			std::vector<EntityInstance::Ptr> ents;
+
+			EntityInstances.DoForEach([&ents, typeID](auto id, EntityInstance::Ptr &ptr)
+				{
+					if (ptr->Descriptor->ID == typeID)
+						ents.push_back(ptr);
+				});
+
+			return ents;
+		}
+
+		std::vector<EntityInstance::Ptr> ClientWorld::GetEntitiesOfType(const std::string& typeName)
+		{
+			auto ent = GetEntityDef(typeName);
+			if (ent == nullptr)
+				return std::vector<EntityInstance::Ptr>();
+
+			return GetEntitiesOfType(ent->ID);
 		}
 
 		void ClientWorld::ProcessAddEntity(MessageBufferReader& reader)
 		{
 			auto id = reader.ReadID();
 			auto type = reader.ReadInt();
-			auto owner = reader.ReadInt();
+			auto owner = reader.ReadID();
 
 			auto desc = GetEntityDef(type);
 			if (desc == nullptr || desc->AllowClientCreate() || !desc->SyncCreate())	// we are not supposed to get this from the remote
 				return;
 			
-			EntityInstance::Ptr inst = NewEntityInstance(*desc, id);;
+			EntityInstance::Ptr inst = NewEntityInstance(desc, id);
 			inst->OwnerID = owner;
-			
-			int index = 0;
+
 			while (!reader.Done())
 			{
-				if (index < inst->Properties.Size())
-				{
+				auto index = reader.ReadByte();
+				if (index >= 0 && index < inst->Properties.Size())
 					inst->Properties[index]->UnpackValue(reader, true);
-				}
-
-				index++;
+				else
+					reader.ReadBuffer(nullptr);
 			}
 
 			EntityInstances.Insert(id, inst);
+			inst->Created();
 			EntityEvents.Call(EntityEventTypes::EntityAdded, [&inst](auto func) {func(inst);});
 		}
 
@@ -83,7 +108,7 @@ namespace EntityNetwork
 		{
 			auto id = reader.ReadID();
 			auto inst = EntityInstances.Find(id);
-			if (inst == std::nullopt || !(*inst)->Descriptor.SyncCreate()) // don't know the ent, or it's a local only ent (negative number)
+			if (inst == std::nullopt || !(*inst)->Descriptor->SyncCreate()) // don't know the ent, or it's a local only ent (negative number)
 				return;
 
 			EntityInstances.Remove(id);
@@ -112,7 +137,7 @@ namespace EntityNetwork
 			}
 
 			auto inst = EntityInstances.Find(localID);
-			if ( localID > 0|| inst == std::nullopt || (*inst)->OwnerID != Self->GetID() ||!(*inst)->Descriptor.SyncCreate() || !(*inst)->Descriptor.AllowServerCreate())
+			if ( localID > 0|| inst == std::nullopt || (*inst)->OwnerID != Self->GetID() ||!(*inst)->Descriptor->SyncCreate() || !(*inst)->Descriptor->AllowServerCreate())
 				return; // not a local ent, unknown ent, or not a client synced ent
 
 			if (remoteID < 0) // server rejected our local ent, so we must destroy it
@@ -133,15 +158,17 @@ namespace EntityNetwork
 		{
 			auto entityID = reader.ReadID();
 			auto inst = EntityInstances.Find(entityID);
-			if (entityID < 0 || inst == nullptr || !(*inst)->Descriptor.SyncCreate())
+			if (entityID < 0 || inst == std::nullopt || !(*inst)->Descriptor->SyncCreate())
 				return;
 
 			while (!reader.Done())
 			{
 				int prop = reader.ReadInt();
 				if (prop < 0 || prop >= (*inst)->Properties.Size())
-					continue;;
+					continue;
 				(*inst)->Properties[prop]->UnpackValue(reader, (*inst)->Properties[prop]->Descriptor->UpdateFromServer());
+
+				(*inst)->PropertyChanged((*inst)->Properties[prop]);
 			}
 			EntityEvents.Call(EntityEventTypes::EntityUpdated, [&inst](auto func) {func(*inst); });
 		}
@@ -150,16 +177,16 @@ namespace EntityNetwork
 		{
 			int64_t id = GetNewEntityLocalID();
 
-			auto entDef = EntityDefs.Find(entityTypeID);
-			if (entDef == std::nullopt || entDef->AllowServerCreate()) // invalid or client only create
+			auto entDef = GetEntityDef(entityTypeID);
+			if (entDef == nullptr || entDef->AllowServerCreate()) // invalid or client only create
 				return EntityInstance::InvalidID;
 
-			EntityInstance::Ptr ent = NewEntityInstance(*entDef, id);
+			EntityInstance::Ptr ent = NewEntityInstance(entDef, id);
 			ent->OwnerID = Self->GetID();
 			EntityInstances.Insert(ent->ID, ent);
 
 			NewLocalEntities.push_back(ent); // cache so the next update will send the message with any data set
-
+			ent->Created();
 			EntityEvents.Call(EntityEventTypes::EntityAdded, [&ent](auto func) {func(ent); });
 
 			return ent->ID;
@@ -167,8 +194,8 @@ namespace EntityNetwork
 
 		int64_t ClientWorld::CreateInstance(const std::string& entityType)
 		{
-			auto ent = EntityDefs.FindIF([&entityType](const int& id, EntityDesc& desc) {return desc.Name == entityType; });
-			if (ent == std::nullopt)
+			auto ent = GetEntityDef(entityType);
+			if (ent == nullptr)
 				return EntityInstance::InvalidID;
 
 			return CreateInstance(ent->ID);
@@ -177,12 +204,12 @@ namespace EntityNetwork
 		bool ClientWorld::RemoveInstance(int64_t entityID)
 		{
 			auto inst = EntityInstances.Find(entityID);
-			if (entityID < 0 || inst == nullptr || !(*inst)->Descriptor.AllowClientCreate())
+			if (entityID < 0 || inst == nullptr || !(*inst)->Descriptor->AllowClientCreate())
 				return false;
 
 			if (entityID < 0) // it's local of some kind, 
 			{
-				if ((*inst)->Descriptor.SyncCreate()) // we told the server we added this
+				if ((*inst)->Descriptor->SyncCreate()) // we told the server we added this
 				{
 					auto itr = std::find(NewLocalEntities.begin(), NewLocalEntities.end(), *inst);
 					if (itr != NewLocalEntities.end()) // it's so new we haven't sent it yet
@@ -230,7 +257,7 @@ namespace EntityNetwork
 			{
 				MessageBufferBuilder addMsg;
 				addMsg.Command = MessageCodes::AddEntity;
-				addMsg.AddID(ptr->Descriptor.ID);
+				addMsg.AddID(ptr->Descriptor->ID);
 				addMsg.AddID(ptr->ID);
 				ptr->Properties.DoForEach([&addMsg](PropertyData::Ptr prop) {prop->PackValue(addMsg); });
 				Send(addMsg.Pack());

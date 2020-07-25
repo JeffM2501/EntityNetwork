@@ -49,7 +49,11 @@ namespace EntityNetwork
 				id++;
 			}
 			ServerEntityController::Ptr ctl = CreateController(id);
-			ctl = RemoteEnitityControllers.Insert(id, ctl);
+			RemoteEnitityControllers.Insert(id, ctl);
+			SetupEntityController(ctl);
+
+			// let someone fill out the default data
+			ControllerEvents.Call(ControllerEventTypes::Created, [ctl](auto func) {func(ctl); });
 
 			// setup any data and properties
 
@@ -76,7 +80,7 @@ namespace EntityNetwork
 
 			// send controller properties
 			Send(ctl, ControllerPropertyCache);
-			SetupEntityController(static_cast<EntityController&>(*ctl));
+			
 
 			// tell the owner they were accepted and what there ID is.
 			MessageBufferBuilder builder;
@@ -84,9 +88,7 @@ namespace EntityNetwork
 			builder.AddID(id);
 			Send(ctl, builder);
 
-			// let someone fill out the default data
-			ControllerEvents.Call(ControllerEventTypes::Created, [ctl](auto func) {func(ctl); });
-
+		
 			// add the new controller and send that message to everyone
 			builder.Clear();
 			builder.Command = MessageCodes::AddController;

@@ -19,8 +19,8 @@ extern bool Quit;
 class FPSTimer
 {
 public:
-	uint32_t LastTickCount;
-	uint32_t DesiredFPS;
+	uint32_t LastTickCount = 0;
+	uint32_t DesiredFPS  = 0;
 
 	inline FPSTimer() {}
 
@@ -90,10 +90,44 @@ void HandleEntityAdd(EntityInstance::Ptr entity);
 class PlayerTank : public EntityInstance
 {
 public:
-	PlayerTank(const EntityDesc& desc) : EntityInstance(desc), AvatarPicture(nullptr){};
+	PlayerTank(EntityDesc::Ptr desc) : EntityInstance(desc), AvatarPicture(nullptr){};
 
 	SDL_Texture* AvatarPicture = nullptr;
 	SDL_Point DrawPoint;
 
 	typedef std::shared_ptr<PlayerTank> Ptr;
+
+	inline virtual void Created()
+	{
+		StatePtr = FindProperty("State");
+		PropertyChanged(StatePtr);
+	}
+
+	inline virtual void PropertyChanged(PropertyData::Ptr ptr)
+	{
+		if (ptr == StatePtr)
+		{
+			float* state = ptr->GetValue3F();
+			DrawPoint.x = (int)(state[0]);
+			DrawPoint.y = (int)(state[1]);
+		}
+	}
+
+	void SetPostion(int x, int y)
+	{
+		DrawPoint.x = x;
+		DrawPoint.y = y;
+		if (StatePtr != nullptr)
+		{
+			float pos[3] = { 0 };
+			pos[0] = (float)x;
+			pos[1] = (float)y;
+			StatePtr->SetValue3F(pos);
+		}
+	}
+
+protected: 
+	PropertyData::Ptr StatePtr = nullptr;
 };
+
+extern int PlayerTankDefID;

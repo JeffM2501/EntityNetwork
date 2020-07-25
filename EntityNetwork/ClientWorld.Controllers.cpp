@@ -39,7 +39,7 @@ namespace EntityNetwork
 
 			Peers.Insert(id, subject);
 
-			SetupEntityController(static_cast<EntityController&>(*subject));
+			SetupEntityController(subject);
 
 			while (!reader.Done())
 			{
@@ -66,7 +66,11 @@ namespace EntityNetwork
 			{
 				while (!reader.Done())
 				{
-					auto prop = subject->FindPropertyByID(reader.ReadByte());
+					int id = reader.ReadByte();
+					auto prop = subject->FindPropertyByID(id);
+					if (prop == nullptr)
+						return;
+
 					prop->UnpackValue(reader, prop->Descriptor->UpdateFromServer());
 
 					if (prop->Descriptor->UpdateFromServer())

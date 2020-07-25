@@ -117,6 +117,7 @@ void InitNetworking()
 }
 
 int serverRPCID = -1;
+int PlayerTankDefID = 0;
 
 void InitEntNet()
 {
@@ -135,9 +136,20 @@ void InitEntNet()
 	WorldData.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::WorldPropertyDefAdded, [](ClientEntityController::Ptr client, int index) {std::cout << "\tWorld Property def added " << index << "\n"; });
 	WorldData.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::WorldPropertyDataChanged, [](ClientEntityController::Ptr client, int index) {std::cout << "\tWorld Property data changed " << index << "\n"; });
 
+	WorldData.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::EntityDefAdded, [](ClientEntityController::Ptr client, int index)
+		{
+			auto def = WorldData.GetEntityDef(index);
+			if (def != nullptr && def->Name == "PlayerTank")
+			{
+				PlayerTankDefID = def->ID;
+			}
+		});
+
 	WorldData.RegisterEntityFactory("PlayerTank", EntityInstance::Create<PlayerTank>);
 
 	WorldData.PropertyEvents.Subscribe(ClientWorld::PropertyEventTypes::InitialWorldPropertyDataComplete, LoadWorld);
+
+	WorldData.EntityEvents.Subscribe(ClientWorld::EntityEventTypes::EntityAdded, HandleEntityAdd);
 }
 
 void Cleanup()

@@ -25,6 +25,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <memory>
 #include <functional>
 
 #include "PropertyDescriptor.h"
@@ -34,6 +35,10 @@ namespace EntityNetwork
 	class EntityDesc
 	{
 	public:
+		typedef std::shared_ptr<EntityDesc> Ptr;
+
+		inline static Ptr Make() { return std::make_shared<EntityDesc>(); }
+
 		int ID = -1;
 		std::string Name;
 

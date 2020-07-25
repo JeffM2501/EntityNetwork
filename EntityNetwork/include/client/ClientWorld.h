@@ -55,7 +55,7 @@ namespace EntityNetwork
 			ClientWorld() : World()
 			{
 				CreateController = [](int64_t id, bool self) {return std::make_shared<ClientEntityController>(id); };
-				CreateEntityInstance = [](const EntityDesc& desc, int64_t id) { auto e = EntityInstance::MakeShared(desc); e->SetID(id); return e; };
+				CreateEntityInstance = [](EntityDesc::Ptr desc, int64_t id) { auto e = EntityInstance::Make(desc); e->SetID(id); return e; };
 			}
 
 			// process any dirty data and build up any outbound data that needs to go out
@@ -143,6 +143,9 @@ namespace EntityNetwork
 			void RegisterEntityFactory(int64_t id, EntityInstance::CreateFunction function);
 			void RegisterEntityFactory(const std::string& name, EntityInstance::CreateFunction function);
 
+			std::vector< EntityInstance::Ptr> GetEntitiesOfType(int64_t typeID);
+			std::vector< EntityInstance::Ptr> GetEntitiesOfType(const std::string& typeID);
+
 		protected:
 			void Send(MessageBuffer::Ptr message);
 
@@ -171,10 +174,10 @@ namespace EntityNetwork
 			std::vector<EntityInstance::Ptr>	NewLocalEntities;
 			std::vector<int64_t>				DeadLocalEntities;
 
-			std::map<int, EntityInstance::CreateFunction> EntityFactories;
+			std::map<int64_t, EntityInstance::CreateFunction> EntityFactories;
 			std::map<std::string, EntityInstance::CreateFunction> PendingEntityFactories;
 
-			EntityInstance::Ptr NewEntityInstance(const EntityDesc& desc, int64_t id);
+			EntityInstance::Ptr NewEntityInstance(EntityDesc::Ptr desc, int64_t id);
 	};
 	}
 }

@@ -23,9 +23,9 @@
 
 namespace EntityNetwork
 {
-	EntityInstance::EntityInstance(const EntityDesc& desc) : Descriptor(desc)
+	EntityInstance::EntityInstance(EntityDesc::Ptr desc) : Descriptor(desc)
 	{
-		for (auto& prop : Descriptor.Properties)
+		for (auto& prop : Descriptor->Properties)
 		{
 			Properties.PushBack(PropertyData::MakeShared(prop));
 		}

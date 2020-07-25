@@ -57,7 +57,7 @@ namespace EntityNetwork
 			ServerWorld() : World()
 			{
 				CreateController = [](int64_t id) {return std::make_shared<ServerEntityController>(id); };
-				CreateEntityInstance = [](const EntityDesc& desc, int64_t id) { auto e = EntityInstance::MakeShared(desc); e->SetID(id); return e; };
+				CreateEntityInstance = [](EntityDesc::Ptr desc, int64_t id) { auto e = EntityInstance::Make(desc); e->SetID(id); return e; };
 			}
 
 			// external servicing
@@ -109,7 +109,7 @@ namespace EntityNetwork
 			// entities
 
 			// register an entity definition
-			virtual int RegisterEntityDesc(EntityDesc& desc);
+			virtual int RegisterEntityDesc(EntityDesc::Ptr desc);
 
 			// All created entities
 			MutexedMap<int64_t, EntityInstance::Ptr> EntityInstances;
@@ -145,6 +145,9 @@ namespace EntityNetwork
 			void RegisterEntityFactory(int64_t id, EntityInstance::CreateFunction function);
 			void RegisterEntityFactory(const std::string& name, EntityInstance::CreateFunction function);
 
+			std::vector< EntityInstance::Ptr> GetEntitiesOfType(int64_t typeID);
+			std::vector< EntityInstance::Ptr> GetEntitiesOfType(const std::string& typeID);
+
 		protected:
 			MutexedVector<MessageBuffer::Ptr> ControllerPropertyCache;
 			MutexedVector<MessageBuffer::Ptr> WorldPropertyDefCache;
@@ -174,10 +177,10 @@ namespace EntityNetwork
 			virtual void ProcessClientEntityUpdate(ServerEntityController::Ptr peer, MessageBufferReader& reader);
 
 		private:
-			std::map<int, EntityInstance::CreateFunction> EntityFactories;
+			std::map<int64_t, EntityInstance::CreateFunction> EntityFactories;
 			std::map<std::string, EntityInstance::CreateFunction> PendingEntityFactories;
 
-			EntityInstance::Ptr NewEntityInstance(const EntityDesc& desc, int64_t id);
+			EntityInstance::Ptr NewEntityInstance(EntityDesc::Ptr desc, int64_t id);
 		};
 	}
 }

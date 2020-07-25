@@ -42,34 +42,47 @@ namespace EntityNetwork
 
 		int64_t ID = InvalidID;
 		int64_t OwnerID = InvalidID;
-		const EntityDesc& Descriptor;
+		EntityDesc::Ptr Descriptor = nullptr;
 
 		MutexedVector<PropertyData::Ptr> Properties;
 
-		EntityInstance(const EntityDesc& desc);
+		EntityInstance (EntityDesc::Ptr desc);
 		virtual ~EntityInstance() {}
 
 		bool Dirty();
 
 		std::vector<PropertyData::Ptr> GetDirtyProperties(KnownEnityDataset& knownSet);
 
+		inline PropertyData::Ptr FindProperty(const std::string& name)
+		{
+			auto p = Properties.FindFirstMatch([&name](PropertyData::Ptr& ptr) {return ptr->Descriptor->Name == name; });
+			if (p == std::nullopt)
+				return nullptr;
+
+			return *p;
+		}
+
+		inline virtual void Created() {};
+		inline virtual void PropertyChanged(PropertyData::Ptr ptr) {};
+
 		typedef std::shared_ptr<EntityInstance> Ptr;
-		typedef std::function<EntityInstance::Ptr(const EntityDesc&, int64_t id)> CreateFunction;
+		typedef std::function<EntityInstance::Ptr( EntityDesc::Ptr, int64_t)> CreateFunction;
+
 
 		virtual inline void SetID(int64_t id) { ID = id; }
 
-		static inline Ptr MakeShared(const EntityDesc& desc)
+		static inline Ptr Make(EntityDesc::Ptr desc)
 		{
 			return std::make_shared<EntityInstance>(desc);
 		}
 
 		static inline bool CanSyncFunc(int64_t id, Ptr ent)
 		{
-			return ent != nullptr && ent->Descriptor.SyncCreate();
+			return ent != nullptr && ent->Descriptor->SyncCreate();
 		}
 
 		template <class T>
-		static inline EntityInstance::Ptr Create(const EntityDesc& d, int64_t id)
+		static inline EntityInstance::Ptr Create(EntityDesc::Ptr d, int64_t id)
 		{
 			std::shared_ptr<T> tPtr = std::make_shared<T>(d);
 			EntityInstance::Ptr ePtr = std::dynamic_pointer_cast<EntityInstance>(tPtr);

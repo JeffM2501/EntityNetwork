@@ -249,11 +249,21 @@ void DrawMap()
 	}
 }
 
+void DrawPlayers()
+{
+	for (auto tank : WorldData.GetEntitiesOfType(PlayerTankDefID))
+	{
+		PlayerTank::Ptr player = std::dynamic_pointer_cast<PlayerTank>(tank);
+
+		BlitTextureCenter(player->AvatarPicture, player->DrawPoint);
+	}
+}
+
 std::map <std::string, SDL_Texture*> TankTextures;
 
 void HandleEntityAdd(EntityInstance::Ptr entity)
 {
-	if (entity->Descriptor.Name == "PlayerTank")
+	if (entity->Descriptor->Name == "PlayerTank")
 	{
 		PlayerTank::Ptr player = std::dynamic_pointer_cast<PlayerTank>(entity);
 		std::string texture = player->Properties[0]->GetValueStr();
@@ -271,5 +281,6 @@ void RenderGraph()
 	DrawMap();
 	DrawNetStatus();
 
+	DrawPlayers();
 	SDL_RenderPresent(Renderer);
 }

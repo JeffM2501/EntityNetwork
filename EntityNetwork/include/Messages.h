@@ -73,7 +73,7 @@ namespace EntityNetwork
 
 	struct StateUpdatePosRot
 	{
-		uint64_t Step;
+		uint64_t Step = 0;
 		float Postion[3] = { 0,0,0 };
 		float Orientation[4] = { 0,0,0,1 };
 	};
@@ -155,7 +155,7 @@ namespace EntityNetwork
 
 		inline void Clear()
 		{
-			Data = std::vector<char>(128);
+			Data = std::vector<char>();
 			if (Command != MessageCodes::NoCode)
 				Data.push_back(0);
 		}
@@ -342,7 +342,8 @@ namespace EntityNetwork
 			if (p == nullptr)
 				return false;
 
-			memcpy(destinationBuffer, p, buffLen);
+			if (destinationBuffer != nullptr)
+				memcpy(destinationBuffer, p, buffLen);
 
 			return true;
 		}

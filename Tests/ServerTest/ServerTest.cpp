@@ -43,30 +43,30 @@ int ClientSpawnRequestRPC;
 void SetupWorldData()
 {
 	// players
-	TheWorld.CreateController = [](int64_t id) {return std::make_shared<ServerEntityController>(id); };
+	TheWorld.CreateController = [](int64_t id) {return std::dynamic_pointer_cast<ServerEntityController>(std::make_shared<ServerPeer>(id)); };
 
 	TheWorld.RegisterControllerProperty("Name", PropertyDesc::DataTypes::String, 32);
 	TheWorld.RegisterControllerProperty("Score", PropertyDesc::DataTypes::Integer);
 	TheWorld.ControllerEvents.Subscribe(ServerWorld::ControllerEventTypes::Created, HandleClientCreate);
 
 	// tanks
-	EntityDesc tank;
-	tank.Name = "PlayerTank";
-	tank.IsAvatar = true;
-	tank.CreateScope = EntityDesc::CreateScopes::ServerSync;
+	EntityDesc::Ptr	tank = EntityDesc::Make();
+	tank->Name = "PlayerTank";
+	tank->IsAvatar = true;
+	tank->CreateScope = EntityDesc::CreateScopes::ServerSync;
 
 	PropertyDesc::Ptr image = PropertyDesc::Make();
 	image->Name = "Image";
 	image->DataType = PropertyDesc::DataTypes::String;
 	image->Scope = PropertyDesc::Scopes::ServerPushSync;
-	tank.AddPropertyDesc(image);
+	tank->AddPropertyDesc(image);
 
 	PropertyDesc::Ptr state = PropertyDesc::Make();
 	state->Name = "State";
 	state->DataType = PropertyDesc::DataTypes::Vector3F;
 	state->Scope = PropertyDesc::Scopes::ClientPushSync;
 
-	tank.AddPropertyDesc(state);
+	tank->AddPropertyDesc(state);
 
 	TheWorld.RegisterEntityDesc(tank);
 
@@ -179,13 +179,13 @@ int main()
 			{
 				ServerPeer::Ptr peer = ServerPeer::Cast(p);
 
-				auto msg = TheWorld.PopOutboundData(peer->NetworkPeer->incomingPeerID);
+				auto msg = p->GetOutbound();
 				while (msg != nullptr)
 				{
 					std::cout << "Server Peer Send Data\n";
 					ENetPacket* packet = enet_packet_create(msg->MessageData, msg->MessageLenght, ENET_PACKET_FLAG_RELIABLE);
 					enet_peer_send(peer->NetworkPeer, 0, packet);
-					msg = TheWorld.PopOutboundData(peer->NetworkPeer->incomingPeerID);
+					msg = p->GetOutbound();
 				}
 			});
 
