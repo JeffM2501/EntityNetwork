@@ -26,6 +26,8 @@
 #include <regex>
 #include <mutex>
 #include <thread>
+#define  _USE_MATH_DEFINES
+#include <math.h>
 
 #include "ClientTest.h"
 
@@ -239,6 +241,64 @@ void UpdateEntNet()
 	}
 }
 
+bool keys[4] = { false,false,false,false };
+
+
+void ApplyMovement()
+{
+	int turn = 0;
+	if (keys[0])
+		turn = -1;
+	else if (keys[1])
+		turn = 1;
+
+	int move = 0;
+	if (keys[2])
+		move = 1;
+	else if (keys[3])
+		move = -1;
+
+	if (turn != 0)
+		SelfPointer->IncrementRotation( 2 * turn);
+
+	if (move != 0)
+	{
+		float radcon = (float)M_PI / 180.0f;
+
+		float angleRad = radcon * (SelfPointer->DrawAngle + 90);
+
+		float dx = cosf(angleRad);
+		float dy = sinf(angleRad);
+
+		float dist = 5.0f * move;
+
+		SelfPointer->SetPostion(SelfPointer->RealPosX + (dx * dist), SelfPointer->RealPosY + (dy * dist));
+	}
+}
+
+void HandleKeyInput(SDL_KeyboardEvent& keyEvent, bool down)
+{
+	switch (keyEvent.keysym.sym)
+	{
+	case SDLK_a:
+		keys[0] = down;
+		break;
+
+	case SDLK_d:
+		keys[1] = down;
+		break;
+
+	case SDLK_w:
+		keys[2] = down;
+		break;
+
+	case SDLK_s:
+		keys[3] = down;
+		break;
+	}
+
+}
+
 void UpdateSDL()
 {
 	SDL_Event sdlEvent;
@@ -261,16 +321,22 @@ void UpdateSDL()
 			default:
 				break;
 			}
+		case SDL_KEYDOWN:
+			HandleKeyInput(sdlEvent.key, true);
+			break;
+
+		case SDL_KEYUP:
+			HandleKeyInput(sdlEvent.key, false);
+			break;
 
 		default:
 			break;
 		} 
 	}
-	if (RenderTimer.Update())
-		RenderGraph();
 
-	RenderTimer.Delay();
+	ApplyMovement();
 }
+
 
 int main(int argc, char**argv)
 {
@@ -288,6 +354,11 @@ int main(int argc, char**argv)
 	{
 		UpdateEntNet();
 		UpdateSDL();
+
+		if (RenderTimer.Update())
+			RenderGraph();
+
+		RenderTimer.Delay();
 	}
 	Cleanup();
 	return 0;

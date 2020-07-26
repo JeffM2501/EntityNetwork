@@ -229,17 +229,9 @@ namespace EntityNetwork
 			if (ent == std::nullopt || (*ent)->OwnerID != peer->ID)
 				return;
 
-			if (!(*ent)->Descriptor->AllowClientCreate() || !(*ent)->Descriptor->SyncCreate())
-			{
-				auto known = peer->KnownEnitities.Find(entityID);
-				if (known != std::nullopt)
-					peer->KnownEnitities[entityID].DataRevisions.clear();
-				return;
-			}
-
 			while (!reader.Done())
 			{
-				auto propID = reader.ReadInt();
+				auto propID = reader.ReadByte();
 				auto prop = (*ent)->Properties.TryGet(propID);
 				if (prop != nullptr)
 				{
@@ -290,7 +282,7 @@ namespace EntityNetwork
 
 										bool transmit = prop->Descriptor->TransmitDef();
 										if (transmit && prop->Descriptor->Scope == PropertyDesc::Scopes::ClientPushSync)
-											transmit = entity->OwnerID == peer->GetID(); // don't send them back updates for a value they pushed to us
+											transmit = entity->OwnerID != peer->GetID(); // don't send them back updates for a value they pushed to us
 
 										if (index <= knownEnt->DataRevisions.size())
 											knownEnt->DataRevisions.push_back(0);

@@ -167,6 +167,8 @@ namespace EntityNetwork
 		private:
 			void HandlePropteryDescriptorMessage(MessageBufferReader& reader);
 
+			bool SavePropertyUpdate(EntityInstance::Ptr inst, int propertyID);
+
 			void ProcessLocalEntities();
 
 			int64_t GetNewEntityLocalID();

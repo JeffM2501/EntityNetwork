@@ -155,6 +155,13 @@ namespace EntityNetwork
 			EntityEvents.Call(EntityEventTypes::EntityAccepted, [&inst](auto func) {func(*inst); });
 		}
 
+		bool ClientWorld::SavePropertyUpdate(EntityInstance::Ptr inst, int prop)
+		{
+			auto propDesc = inst->Properties[prop]->Descriptor;
+
+			return propDesc->UpdateFromServer() || (propDesc->Scope == PropertyDesc::Scopes::ClientPushSync && inst->OwnerID != Self->ID);
+		}
+
 		void ClientWorld::ProcessEntityDataChange(MessageBufferReader& reader)
 		{
 			auto entityID = reader.ReadID();
@@ -164,10 +171,10 @@ namespace EntityNetwork
 
 			while (!reader.Done())
 			{
-				int prop = reader.ReadInt();
+				int prop = reader.ReadByte();
 				if (prop < 0 || prop >= (*inst)->Properties.Size())
 					continue;
-				(*inst)->Properties[prop]->UnpackValue(reader, (*inst)->Properties[prop]->Descriptor->UpdateFromServer());
+				(*inst)->Properties[prop]->UnpackValue(reader, SavePropertyUpdate(*inst,prop));
 
 				(*inst)->PropertyChanged((*inst)->Properties[prop]);
 			}

@@ -96,6 +96,9 @@ public:
 	SDL_Point DrawPoint;
 	float DrawAngle = 0;
 
+	float RealPosX = 0;
+	float RealPosY = 0;
+
 	typedef std::shared_ptr<PlayerTank> Ptr;
 
 	inline virtual void Created()
@@ -111,27 +114,48 @@ public:
 			float* state = ptr->GetValue3F();
 			DrawPoint.x = (int)(state[0]);
 			DrawPoint.y = (int)(state[1]);
+			RealPosX = state[0];
+			RealPosY = state[1];
 			DrawAngle = state[2];
 		}
 	}
 
-	void SetPostion(int x, int y, double angle)
+	inline void UpdateState()
 	{
-		DrawPoint.x = x;
-		DrawPoint.y = y;
-		DrawAngle = angle;
 		if (StatePtr != nullptr)
 		{
 			float pos[3] = { 0 };
-			pos[0] = (float)x;
-			pos[1] = (float)y;
+			pos[0] = RealPosX;
+			pos[1] = RealPosY;
 			pos[2] = DrawAngle;
 			StatePtr->SetValue3F(pos);
 		}
+
+		DrawPoint.x = (int)(RealPosX);
+		DrawPoint.y = (int)(RealPosY);
+	}
+
+	inline void SetRotation(float angle)
+	{
+		DrawAngle = angle;
+		UpdateState();
+	}
+
+	inline void IncrementRotation(float angle)
+	{
+		SetRotation(DrawAngle + angle);
+	}
+
+	inline void SetPostion(float x, float y)
+	{
+		RealPosX = x;
+		RealPosY = y;
+		UpdateState();
 	}
 
 protected: 
 	PropertyData::Ptr StatePtr = nullptr;
 };
 
+extern PlayerTank::Ptr SelfPointer;
 extern int PlayerTankDefID;

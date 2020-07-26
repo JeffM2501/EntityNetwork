@@ -12,6 +12,8 @@ SDL_Texture* Cross = nullptr;
 
 SDL_Texture* UserIcon = nullptr;
 
+PlayerTank::Ptr SelfPointer = nullptr;
+
 SDL_Texture* LoadTexture(const std::string& file, SDL_Renderer* ren)
 {
 	if (ren == nullptr)
@@ -255,7 +257,7 @@ void DrawPlayers()
 	{
 		PlayerTank::Ptr player = std::dynamic_pointer_cast<PlayerTank>(tank);
 
-		BlitTextureCenter(player->AvatarPicture, player->DrawPoint, 90.0f);// player->DrawAngle);
+		BlitTextureCenter(player->AvatarPicture, player->DrawPoint, player->DrawAngle);
 	}
 }
 
@@ -271,6 +273,9 @@ void HandleEntityAdd(EntityInstance::Ptr entity)
 			TankTextures[texture] = LoadTexture("sprites/tanks/" + texture + ".png");
 
 		player->AvatarPicture = TankTextures[texture];
+
+		if (player->OwnerID == WorldData.Self->GetID())
+			SelfPointer = player;
 	}
 }
 

@@ -52,12 +52,12 @@ namespace EntityNetwork
 
 		inline bool UpdateFromClient() const
 		{
-			return TransmitDef() && (Scope == Scopes::BidirectionalSync || Scope != Scopes::ClientPushSync);
+			return TransmitDef() && (Scope == Scopes::BidirectionalSync || Scope == Scopes::ClientPushSync);
 		}
 
 		inline bool UpdateFromServer() const
 		{
-			return TransmitDef() && (Scope == Scopes::BidirectionalSync || Scope != Scopes::ServerPushSync);
+			return TransmitDef() && (Scope == Scopes::BidirectionalSync || Scope == Scopes::ServerPushSync);
 		}
 
 		enum class DataTypes

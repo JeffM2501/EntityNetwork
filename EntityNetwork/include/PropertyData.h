@@ -477,8 +477,7 @@ namespace EntityNetwork
 				DataPtr = (void*) new char[DataLenght];
 				reader.ReadBuffer(DataPtr);
 
-				MutexGuardian guard(DirtyMutex);
-				Dirty = true;
+				SetDirty();
 			}
 		}
 	};
