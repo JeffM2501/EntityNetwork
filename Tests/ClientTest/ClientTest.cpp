@@ -19,7 +19,6 @@
 //	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 //	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //	SOFTWARE.
-
 #include <iostream>
 #include <thread>
 #include <string>
@@ -98,6 +97,8 @@ std::thread ConnectThread;
 std::mutex ConnectMutex;
 bool IsConnected = false;
 
+std::string HostAddress = "127.0.0.1";
+
 bool NetConnected()
 {
 	return IsConnected;
@@ -108,7 +109,7 @@ void InitNetworking()
 	enet_initialize();
 
 	ENetAddress address = { 0 };
-	enet_address_set_host(&address, "127.0.0.1");
+	enet_address_set_host(&address, HostAddress.c_str());
 	address.port = DefaultHost;
 
 	NetClient = nullptr;
@@ -212,7 +213,7 @@ void UpdateEntNet()
 			return;
 
 		case ENetEventType::ENET_EVENT_TYPE_RECEIVE:
-			std::cout << "Client Data Receive\n";
+		//	std::cout << "Client Data Receive\n";
 			if (evt.channelID == 0)
 				WorldData.AddInboundData(MessageBuffer::MakeShared(evt.packet->data, evt.packet->dataLength, false));
 			else
@@ -341,6 +342,15 @@ void UpdateSDL()
 int main(int argc, char**argv)
 {
 	std::cout << "Client Startup\n";
+
+	std::cout << "Server Host (enter for local)\n";
+
+#ifndef _DEBUG
+	HostAddress << std::cin;
+#endif // !_DEBUG
+
+	std::cout << "Client Connecting to " + HostAddress + "\n";
+	
 
 	if (!InitGraph())
 	{

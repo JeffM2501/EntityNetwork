@@ -103,6 +103,7 @@ namespace EntityNetwork
 
 			MessageBuffer::Ptr createMessage = builder.Pack();
 
+			// tell everyone about the new controller's data
 			RemoteEnitityControllers.DoForEach([this, &builder, &ctl, &createMessage](auto& key, ServerEntityController::Ptr& peer)
 				{
 					Send(peer, createMessage);
@@ -121,6 +122,25 @@ namespace EntityNetwork
 						Send(ctl, builder);
 					}
 				});
+
+			// tell the new person about everyone else
+			RemoteEnitityControllers.DoForEach([this, &builder, &ctl, &createMessage](auto& key, ServerEntityController::Ptr& peer)
+				{
+					if (peer != ctl) // tell new peer about everyone else's property data while we are iterating
+					{
+						builder.Clear();
+						builder.Command = MessageCodes::AddController;
+						builder.AddID(peer->ID);
+
+						peer->Properties.DoForEach([&builder](auto& prop)
+							{
+								if (prop->Descriptor->TransmitDef())
+									prop->PackValue(builder);
+							});
+						Send(ctl, builder);
+					}
+				});
+
 			return ctl;
 		}
 
