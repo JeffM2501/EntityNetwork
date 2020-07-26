@@ -245,6 +245,31 @@ void UpdateEntNet()
 bool keys[4] = { false,false,false,false };
 
 
+bool MapInfo::ValidPlayerPos(float pos[2], float radius)
+{
+	if (pos[0] < radius || pos[0] > MapSize.x - radius || pos[1] < radius || pos[1] > MapSize.y - radius)
+		return false;
+
+	for (auto r : MapObstacles)
+	{
+		if (pos[0] < r.x - radius)
+			continue;
+
+		if (pos[0] > r.x + r.w + radius)
+			continue;
+
+		if (pos[1] < r.y - radius)
+			continue;
+
+		if (pos[1] > r.y + r.h + radius)
+			continue;
+
+		return false;
+	}
+
+	return true;
+}
+
 void ApplyMovement()
 {
 	int turn = 0;
@@ -273,7 +298,12 @@ void ApplyMovement()
 
 		float dist = 5.0f * move;
 
-		SelfPointer->SetPostion(SelfPointer->RealPosX + (dx * dist), SelfPointer->RealPosY + (dy * dist));
+		float p[2];
+		p[0] = SelfPointer->RealPosX + (dx * dist);
+		p[1] = SelfPointer->RealPosY + (dy * dist);
+
+		if (MapData.ValidPlayerPos(p,30))
+			SelfPointer->SetPostion(p[0],p[1]);
 	}
 }
 

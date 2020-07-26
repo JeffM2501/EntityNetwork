@@ -183,24 +183,24 @@ bool InitGraph()
 	return true;
 }
 
-SDL_Point MapSize;
-std::map<int, SDL_Texture*> ObjectTextures;
-std::vector<std::pair<int, SDL_Point>> MapObjects;
+MapInfo MapData;
 
 void LoadWorld(ClientEntityController::Ptr, int)
 {
-	MapSize.x = WorldData.GetWorldPropertyData("Width")->GetValueI();
-	MapSize.y = WorldData.GetWorldPropertyData("Height")->GetValueI();
+	MapData.MapSize.x = WorldData.GetWorldPropertyData("Width")->GetValueI();
+	MapData.MapSize.y = WorldData.GetWorldPropertyData("Height")->GetValueI();
 
 	auto map = WorldData.GetWorldPropertyData("Map")->GetValueReader();
 
-	for (std::map<int, SDL_Texture*>::iterator itr = ObjectTextures.begin(); itr != ObjectTextures.end(); itr++)
+	for (std::map<int, SDL_Texture*>::iterator itr = MapData.ObjectTextures.begin(); itr != MapData.ObjectTextures.end(); itr++)
 		SDL_DestroyTexture(itr->second);
-	ObjectTextures.clear();
+
+	MapData.ObjectTextures.clear();
+	MapData.MapObstacles.clear();
 
 	int count = map.ReadInt();
 	for (int i = 0; i < count; i++)
-		ObjectTextures[i] = LoadTexture("sprites/obstacles/" + map.ReadString());
+		MapData.ObjectTextures[i] = LoadTexture("sprites/obstacles/" + map.ReadString());
 
 	if (BackgroundTexture != nullptr)
 		SDL_DestroyTexture(BackgroundTexture);
@@ -215,7 +215,16 @@ void LoadWorld(ClientEntityController::Ptr, int)
 		p.x = map.ReadInt();
 		p.y = map.ReadInt();
 
-		MapObjects.push_back(std::pair<int, SDL_Point>(id, p));
+		MapData.MapObjects.push_back(std::pair<int, SDL_Point>(id, p));
+
+		auto& texture = MapData.ObjectTextures[id];
+		
+		SDL_Rect rect;
+		SDL_QueryTexture(texture, nullptr, nullptr, &rect.w, &rect.h);
+		rect.x = p.x - rect.w / 2;
+		rect.y = p.y - rect.h / 2;
+
+		MapData.MapObstacles.push_back(rect);
 	}
 }
 
@@ -237,7 +246,7 @@ void DrawNetStatus()
 
 void DrawMap()
 {
-	if (ObjectTextures.size() == 0 || MapSize.x <= 0 || MapSize.y <= 0)
+	if (MapData.ObjectTextures.size() == 0 || MapData.MapSize.x <= 0 || MapData.MapSize.y <= 0)
 		return;
 
 	// border
@@ -247,28 +256,28 @@ void DrawMap()
 		SDL_QueryTexture(BackgroundTexture, nullptr, nullptr, &w, &h);
 
 		// do the top and bottom
-		for (int i = 0; i < MapSize.x; i += w)
+		for (int i = 0; i < MapData.MapSize.x; i += w)
 		{
 			BlitTexture(BorderTexture, i, 0);
-			BlitTexture(BorderTexture, i, MapSize.y);
+			BlitTexture(BorderTexture, i, MapData.MapSize.y);
 		}
 
 		// do the left and right
-		int count = (MapSize.y / w);
+		int count = (MapData.MapSize.y / w);
 
-		int vOffset = MapSize.y / count;
+		int vOffset = MapData.MapSize.y / count;
 
-		for (int i = vOffset; i < MapSize.y; i += w)
+		for (int i = vOffset; i < MapData.MapSize.y; i += w)
 		{
 			BlitTextureCenter(BorderTexture, h/4, i, 90, nullptr);
-			BlitTextureCenter(BorderTexture, MapSize.x, i, 90, nullptr);
+			BlitTextureCenter(BorderTexture, MapData.MapSize.x + 10, i, 90, nullptr);
 		}
 	}
 
 	//obstacles
-	for (auto& obj : MapObjects)
+	for (auto& obj : MapData.MapObjects)
 	{
-		auto tx = ObjectTextures[obj.first];
+		auto tx = MapData.ObjectTextures[obj.first];
 		BlitTextureCenter(tx, obj.second);
 	}
 }

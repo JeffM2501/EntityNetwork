@@ -33,6 +33,18 @@ extern SDL_Rect	WindowRect;
 extern SDL_Renderer* Renderer;
 extern SDL_Texture* BackgroundTexture;
 
+class MapInfo
+{
+public:
+	SDL_Point MapSize;
+	std::map<int, SDL_Texture*> ObjectTextures;
+	std::vector<std::pair<int, SDL_Point>> MapObjects;
+	std::vector<SDL_Rect> MapObstacles;
+
+	bool ValidPlayerPos(float pos[2], float radius);
+};
+extern MapInfo MapData;
+
 extern ClientWorld WorldData;
 
 extern bool Quit;
